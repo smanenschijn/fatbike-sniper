@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fatbike Sniper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- in-game HUD -->
+  <div id="hud" class="hidden">
+    <div id="score-box"><span class="label">SCORE</span><span id="score">0</span></div>
+    <div id="timer">60</div>
+    <div id="hearts"></div>
+    <div id="crosshair"><div class="ch"></div></div>
+    <div id="hitmarker"></div>
+    <div id="scope"><div class="scope-ring"></div></div>
+    <div id="weapons"></div>
+    <div id="reload"><div id="reload-bar"></div><span>HERLADEN</span></div>
+    <div id="popups"></div>
+    <div id="damage"></div>
+    <div id="center-msg"></div>
+  </div>
+
+  <!-- loading -->
+  <div id="loading" class="screen">
+    <div class="logo"><span class="l1">FATBIKE</span><span class="l2">SNIPER</span></div>
+    <div class="progress"><div id="progress-bar"></div></div>
+    <p id="loading-text">Plein aan het opbouwen...</p>
+  </div>
+
+  <!-- title -->
+  <div id="title" class="screen hidden">
+    <div class="logo"><span class="l1">FATBIKE</span><span class="l2">SNIPER</span></div>
+    <p class="tagline">Zit. Richt. Schiet. Hoeveel kun jij er neerhalen?</p>
+    <button id="start-btn" class="big-btn">SPELEN</button>
+    <div class="columns">
+      <div class="card">
+        <h3>Besturing</h3>
+        <ul class="controls">
+          <li><b>Muis</b> richten</li>
+          <li><b>Linkermuisknop</b> schieten</li>
+          <li><b>Rechtermuisknop</b> of <b>Shift</b> inzoomen (sniper)</li>
+          <li><b>1 – 4</b> of <b>scrollwiel</b> wapen wisselen</li>
+          <li><b>R</b> herladen &nbsp; <b>Esc</b> pauze</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Punten</h3>
+        <ul class="controls">
+          <li>Fatbiker van z'n fiets <b>+100</b></li>
+          <li>Headshot <b>+50</b> &nbsp; Wheelie-gozer <b>x2</b></li>
+          <li>Meerdere in één schot <b>+100</b> per extra</li>
+          <li>Mes uit de lucht schieten <b>+150</b></li>
+          <li>Speaker-baas <b>+500</b> (3 treffers)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Hall of Fame</h3>
+        <ol id="highscores-title" class="highscores"></ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- pause -->
+  <div id="pause" class="screen hidden">
+    <h2>GEPAUZEERD</h2>
+    <p>Klik om verder te schieten</p>
+  </div>
+
+  <!-- end -->
+  <div id="end" class="screen hidden">
+    <h2 id="end-reason">TIJD OP!</h2>
+    <div id="end-title" class="rank"></div>
+    <div id="end-score" class="final-score"></div>
+    <div id="end-stats" class="stats"></div>
+    <div id="name-entry">
+      <input id="name-input" maxlength="14" placeholder="Jouw naam" />
+      <button id="save-btn" class="big-btn small">OPSLAAN</button>
+    </div>
+    <ol id="highscores-end" class="highscores"></ol>
+    <button id="again-btn" class="big-btn">NOG EEN KEER</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
