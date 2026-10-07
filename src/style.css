@@ -9,6 +9,9 @@
 }
 
 * { box-sizing: border-box; }
+/* no double-tap / pinch zoom on phones and tablets (scrolling menus still works) */
+html, body, body * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+canvas#game, .tbtn, #bt, #weapons { touch-action: none; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--text); font-family: 'Nunito', system-ui, sans-serif; }
 canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 .hidden { display: none !important; }
@@ -146,7 +149,7 @@ body.touch.playing #btn-music { display: block; right: auto; left: 50%; top: 10p
 .touch-only, #touch-ui, #rotate { display: none; }
 body.touch .touch-only { display: block; }
 body.touch .desktop-only { display: none; }
-body.touch, body.touch canvas { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body.touch #touch-ui { display: block; }
 body.touch #bt { pointer-events: auto; left: max(14px, env(safe-area-inset-left)); bottom: 14px; min-width: 150px; }
 body.touch #bt kbd, body.touch #crosshair.hidden-touch { display: none; }

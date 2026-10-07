@@ -22,6 +22,15 @@ const canvas = $('game');
 if (IS_TOUCH) document.body.classList.add('touch');
 const music = new Music(sfx);
 
+// iOS Safari ignores user-scalable=no: block double-tap and pinch zoom ourselves (text fields excepted)
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = performance.now();
+  if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea')) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+
 // ---------------------------------------------------------------- renderer
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.25 : 1.5));
