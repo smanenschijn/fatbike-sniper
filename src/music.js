@@ -49,6 +49,10 @@ const HOOK_B = [
 
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// Optional recorded tracks (e.g. made with an AI music generator). If present they replace the synth.
+const TRACK_URL = 'audio/fatbike-flow.mp3';
+const TITLE_URL = 'audio/fatbike-flow-instrumental.mp3';
+
 export class Music {
   constructor(sfx) {
     this.sfx = sfx;
@@ -110,6 +114,50 @@ export class Music {
     this._setup();
     if (this.running) return;
     this.running = true;
+    this._tryRecorded().then((ok) => { if (!ok && this.running) this._startSynth(); });
+  }
+
+  async _loadBuffer(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await this.ctx.decodeAudioData(await res.arrayBuffer());
+    } catch { return null; }
+  }
+
+  /** Play recorded mp3s when they exist: title = instrumental (or the song, muffled), game = the song. */
+  async _tryRecorded() {
+    const song = await this._loadBuffer(TRACK_URL);
+    if (!song) return false;
+    this.recorded = { song, title: (await this._loadBuffer(TITLE_URL)) || song, src: null, which: null };
+    this._playRecorded(this.intensity === 'title' ? 'title' : 'song');
+    return true;
+  }
+
+  _playRecorded(which) {
+    const r = this.recorded;
+    if (r.which === which) return;
+    const t = this.ctx.currentTime;
+    if (r.src) {
+      const old = r.src, oldGain = r.gain;
+      oldGain.gain.setTargetAtTime(0.0001, t, 0.3);
+      old.stop(t + 1.5);
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = r[which];
+    src.loop = true;
+    src.playbackRate.value = this.slow ? 0.62 : 1;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.setTargetAtTime(which === 'title' && r.title === r.song ? 0.7 : 1, t, 0.3);
+    src.connect(g).connect(this.out);
+    src.start(t);
+    Object.assign(r, { src, gain: g, which });
+    // no separate instrumental: play the song "from inside the café" on the title screen
+    this.lowpass.frequency.setTargetAtTime(which === 'title' && r.title === r.song ? 1400 : this.slow ? 1100 : 20000, t, 0.3);
+  }
+
+  _startSynth() {
     this.step = 0;
     this.loop = 0;
     this.nextTime = this.ctx.currentTime + 0.1;
@@ -118,7 +166,10 @@ export class Music {
 
   stop() { clearInterval(this.timer); this.running = false; }
 
-  setIntensity(level) { this.intensity = level; }
+  setIntensity(level) {
+    this.intensity = level;
+    if (this.recorded) this._playRecorded(level === 'title' ? 'title' : 'song');
+  }
 
   toggleMute() {
     this.muted = !this.muted;
@@ -134,6 +185,7 @@ export class Music {
     const t = this.ctx.currentTime;
     this.lowpass.frequency.setTargetAtTime(on ? 1100 : 20000, t, 0.15);
     this.reverbSend.gain.setTargetAtTime(on ? 0.75 : 0.35, t, 0.2);
+    if (this.recorded?.src) this.recorded.src.playbackRate.setTargetAtTime(on ? 0.62 : 1, t, 0.12); // slowed
   }
 
   get _tempo() { return this.slow ? 0.55 : 1; }
