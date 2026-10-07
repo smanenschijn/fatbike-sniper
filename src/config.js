@@ -3,7 +3,19 @@ import * as THREE from 'three';
 /** Blender (x, y, z) -> three.js (x, z, -y). The glTF exporter applies the same conversion. */
 export const B = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
 
+/** Phones/tablets: touch controls + a lighter graphics profile. */
+export const IS_TOUCH = typeof window !== 'undefined'
+  && (new URLSearchParams(location.search).has('touch') || matchMedia('(pointer: coarse)').matches
+    || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches));
+
 export const ROUND_TIME = 60;
+
+export const BULLET_TIME = {
+  duration: 4.5,      // real seconds
+  scale: 0.2,         // world speed while active
+  fill: { kill: 0.2, head: 0.12, knife: 0.2 },
+  bonus: 1.5,         // score multiplier for slow-mo kills
+};
 export const HEARTS = 3;
 export const GRAVITY = 9.8;
 
@@ -39,7 +51,7 @@ export const SCORE = {
 /** Difficulty ramps over the round (t in 0..1). */
 export const difficulty = (t) => ({
   spawnInterval: THREE.MathUtils.lerp(1.9, 0.5, t),
-  maxAlive: Math.round(THREE.MathUtils.lerp(5, 18, t)),
+  maxAlive: Math.round(THREE.MathUtils.lerp(5, 18, t) * (IS_TOUCH ? 0.75 : 1)),
   attackChance: THREE.MathUtils.lerp(0.12, 0.45, t),
   speedMul: THREE.MathUtils.lerp(1.0, 1.35, t),
 });

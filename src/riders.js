@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import {
-  ATTACK_Z, BIKE_COLORS, BOSS_SHOUTS, ENTRIES, FOUNTAIN, GRAVITY, RING_RADIUS, SHOUTS, SUIT_COLORS, THROW_SHOUTS,
+  ATTACK_Z, BIKE_COLORS, IS_TOUCH, BOSS_SHOUTS, ENTRIES, FOUNTAIN, GRAVITY, RING_RADIUS, SHOUTS, SUIT_COLORS, THROW_SHOUTS,
 } from './config.js';
 import { sfx } from './audio.js';
 
 const RING_NODES = 12;
-const LOD_DIST = 13;
+const LOD_DIST = IS_TOUCH ? 8 : 13;
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 

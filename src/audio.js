@@ -10,8 +10,11 @@ class Sfx {
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.55;
-    const comp = this.ctx.createDynamicsCompressor();
-    this.master.connect(comp).connect(this.ctx.destination);
+    this.slowFilter = this.ctx.createBiquadFilter();
+    this.slowFilter.type = 'lowpass';
+    this.slowFilter.frequency.value = 20000;
+    this.comp = this.ctx.createDynamicsCompressor();
+    this.master.connect(this.slowFilter).connect(this.comp).connect(this.ctx.destination);
     const len = this.ctx.sampleRate * 2;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -116,6 +119,27 @@ class Sfx {
 
   cheer() {
     for (let i = 0; i < 4; i++) this._noise(1.1, { type: 'bandpass', freq: 900 + i * 350, q: 4, gain: 0.12, attack: 0.25, delay: i * 0.05 });
+  }
+
+  /** Bullet time: muffle the effects too. */
+  setSlow(on) {
+    if (!this.ctx) return;
+    this.slowFilter.frequency.setTargetAtTime(on ? 1800 : 20000, this.t, 0.1);
+  }
+
+  bulletIn() {
+    this._tone(320, 0.9, { type: 'sawtooth', freqEnd: 60, gain: 0.25, attack: 0.02 });
+    this._noise(1.0, { type: 'bandpass', freq: 3000, freqEnd: 200, q: 2, gain: 0.5, attack: 0.05 });
+    this._tone(55, 1.2, { gain: 0.6, attack: 0.05 });
+  }
+
+  bulletOut() {
+    this._tone(80, 0.5, { type: 'sawtooth', freqEnd: 400, gain: 0.2, attack: 0.02 });
+    this._noise(0.5, { type: 'bandpass', freq: 300, freqEnd: 3000, q: 2, gain: 0.35, attack: 0.05 });
+  }
+
+  ready() {
+    [880, 1320].forEach((f, i) => this._tone(f, 0.18, { type: 'triangle', gain: 0.12, delay: i * 0.09 }));
   }
 
   tick() { this._tone(1000, 0.06, { type: 'square', gain: 0.1 }); }

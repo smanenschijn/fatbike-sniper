@@ -4,7 +4,7 @@ import { sfx } from './audio.js';
 
 /** Weapon stats. Muzzles are in the viewmodel's own (Blender) frame. */
 const DEFS = [
-  { key: 'katapult', name: 'KATAPULT', mag: Infinity, reserve: Infinity, fireDelay: 0.55, reload: 0, kind: 'projectile',
+  { key: 'katapult', name: 'KATAPULT', mag: Infinity, reserve: Infinity, fireDelay: 0.3, reload: 0, kind: 'projectile',
     projectile: { speed: 42, gravity: 6, radius: 0.12, damage: 1 }, muzzle: B(0, 0, 0.36), kick: 0.35,
     offset: new THREE.Vector3(0, -0.11, 0.13) },
   { key: 'shotgun', name: 'SHOTGUN', mag: 6, reserve: Infinity, fireDelay: 0.85, reload: 1.7, kind: 'hitscan',

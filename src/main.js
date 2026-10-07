@@ -3,7 +3,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { FOV, HEARTS, difficulty } from './config.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FOV, HEARTS, IS_TOUCH, difficulty } from './config.js';
+import { BulletTimeShader } from './bulletShader.js';
+import { Music } from './music.js';
 import { loadAssets } from './assets.js';
 import { World } from './world.js';
 import { Input } from './input.js';
@@ -16,10 +19,12 @@ import { sfx } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
+if (IS_TOUCH) document.body.classList.add('touch');
+const music = new Music(sfx);
 
 // ---------------------------------------------------------------- renderer
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.25 : 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -33,8 +38,10 @@ scene.add(camera);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.4, 3.0);
-composer.addPass(bloom);
+if (!IS_TOUCH) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.4, 3.0));
+const bulletPass = new ShaderPass(BulletTimeShader);
+bulletPass.enabled = false;
+composer.addPass(bulletPass);
 composer.addPass(new OutputPass());
 
 addEventListener('resize', () => {
@@ -81,7 +88,7 @@ async function boot() {
   riders = new Riders(scene, assets, effects, { playerEye: world.eye, onPlayerHit: () => {} });
   weapons = new Weapons(camera, assets, {});
   input = new Input(canvas);
-  game = new Game({ scene, camera, world, riders, weapons, effects, hud });
+  game = new Game({ scene, camera, world, riders, weapons, effects, hud, music });
   game.onEnd = showEnd;
   input.onLockChange = (locked) => { if (!locked && mode === 'playing') pause(); };
   input.onModeChange = (m) => {
@@ -91,7 +98,7 @@ async function boot() {
 
   // warm up shaders so the first shot doesn't stutter
   renderer.compile(scene, camera);
-  if (import.meta.env.DEV) window.__dbg = { renderer, composer, game, camera, input, riders, weapons, world, effects, startGame, scene, setMode: (m) => (mode = m) };
+  if (import.meta.env.DEV) window.__dbg = { music, renderer, composer, game, camera, input, riders, weapons, world, effects, startGame, scene, setMode: (m) => (mode = m) };
   $('loading').classList.add('hidden');
   showTitle();
   requestAnimationFrame(loop);
@@ -165,6 +172,32 @@ $('save-btn').addEventListener('click', () => {
 $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('save-btn').click(); });
 $('start-btn').addEventListener('click', startGame);
 $('again-btn').addEventListener('click', startGame);
+// ---------------------------------------------------------------- music + on-screen buttons
+const startMusic = () => music.start();
+addEventListener('pointerdown', startMusic, { once: true });
+addEventListener('keydown', startMusic, { once: true });
+function syncMusicBtn() { $('btn-music').classList.toggle('off', music.muted); }
+$('btn-music').addEventListener('click', (e) => { e.stopPropagation(); music.start(); music.toggleMute(); syncMusicBtn(); });
+addEventListener('keydown', (e) => { if (e.code === 'KeyM') { music.start(); music.toggleMute(); syncMusicBtn(); } });
+syncMusicBtn();
+
+const hold = (id, down, up) => {
+  const el = $(id);
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); down(); });
+  if (up) for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => up());
+};
+hold('btn-fire', () => input.virtualFire(true), () => input.virtualFire(false));
+hold('btn-reload', () => input.pressKey('KeyR'));
+hold('btn-zoom', () => { input.zoomToggle = !input.zoomToggle; $('btn-zoom').classList.toggle('on', input.zoomToggle); });
+hold('btn-pause', () => { if (mode === 'playing') pause(); });
+hold('bt', () => input.pressKey('KeyB'));
+$('weapons').addEventListener('pointerdown', (e) => {
+  const slot = e.target.closest('.wslot');
+  if (!slot || mode !== 'playing') return;
+  e.stopPropagation();
+  input.pressKey(`Digit${[...slot.parentNode.children].indexOf(slot) + 1}`);
+});
+
 $('pause').addEventListener('click', () => {
   $('pause').classList.add('hidden');
   mode = 'playing';
@@ -190,7 +223,7 @@ function loop() {
     camera.rotation.set(-0.08 + Math.sin(demoT * 0.15) * 0.05, Math.sin(demoT * 0.12) * 0.6, 0);
     weapons.root.visible = false;
   } else if (mode === 'playing') {
-    if (input.mode === 'cursor' && input.keysPressed.has('Escape')) pause();
+    if (input.mode !== 'locked' && input.keysPressed.has('Escape')) pause();
     input.update(dt);
     game.update(dt, input);
     camera.rotation.set(input.pitch, input.yaw, 0);
@@ -198,9 +231,15 @@ function loop() {
     else hud.setAim(null);
   }
   if (mode === 'playing' || mode === 'paused') {
-    hud.setWeapons(weapons.hudState());
+    const ws = weapons.hudState();
+    hud.setWeapons(ws);
     hud.setHearts(game.hearts, HEARTS);
+    $('btn-zoom').style.display = ws.key === 'sniper' ? '' : 'none';
+    if (ws.key !== 'sniper' && input.zoomToggle) { input.zoomToggle = false; $('btn-zoom').classList.remove('on'); }
   }
+  const bt = mode === 'playing' || mode === 'paused' ? game.bulletAmount : 0;
+  bulletPass.enabled = bt > 0.001;
+  bulletPass.uniforms.amount.value = bt;
 
   // camera shake
   camera.position.copy(world.eye);
@@ -212,8 +251,9 @@ function loop() {
   }
 
   if (mode !== 'paused') {
-    effects.update(dt);
-    world.update(dt);
+    const wdt = mode === 'playing' ? dt * game.timeScale : dt;
+    effects.update(wdt);
+    world.update(wdt);
   }
   input.endFrame();
   composer.render();

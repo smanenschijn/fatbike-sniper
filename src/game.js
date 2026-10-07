@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { HEARTS, ROUND_TIME, SCORE, difficulty } from './config.js';
+import { BULLET_TIME as BT, HEARTS, ROUND_TIME, SCORE, difficulty } from './config.js';
 import { sfx } from './audio.js';
 
 const MULTI_NAMES = { 2: 'DUBBEL!', 3: 'TRIPLE!', 4: 'QUADRA!', 5: 'MEGA!' };
 
 export class Game {
-  constructor({ scene, camera, world, riders, weapons, effects, hud }) {
-    Object.assign(this, { scene, camera, world, riders, weapons, effects, hud });
+  constructor({ scene, camera, world, riders, weapons, effects, hud, music }) {
+    Object.assign(this, { scene, camera, world, riders, weapons, effects, hud, music });
+    this.bt = { meter: 0, active: false, t: 0, scale: 1 };
     this.state = 'idle';
     this.projectiles = [];
     this.tracers = [];
@@ -32,6 +33,9 @@ export class Game {
     this.time = ROUND_TIME;
     this.hearts = HEARTS;
     this.stats = { shots: 0, hits: 0, kills: 0, headshots: 0, knives: 0, bestMulti: 1, bosses: 0 };
+    this._endBulletTime(true);
+    this.bt = { meter: 0, active: false, t: 0, scale: 1 };
+    this.music?.setIntensity('game');
     this.countdown = 3.6;
     this.lastCount = null;
     this.state = 'countdown';
@@ -41,6 +45,44 @@ export class Game {
   }
 
   get elapsed() { return ROUND_TIME - this.time; }
+
+  /** World speed (1 = normal, BT.scale in bullet time). */
+  get timeScale() { return this.bt.scale; }
+
+  /** 0..1 strength of the bullet-time look. */
+  get bulletAmount() { return (1 - this.bt.scale) / (1 - BT.scale); }
+
+  // ------------------------------------------------------------ bullet time
+
+  fillMeter(x) {
+    if (this.bt.active || this.state !== 'playing') return;
+    const was = this.bt.meter;
+    this.bt.meter = Math.min(1, was + x);
+    if (was < 1 && this.bt.meter >= 1) {
+      sfx.ready();
+      this.effects.screenPopup(this.hud.touch ? 'BULLET TIME KLAAR!' : 'BULLET TIME KLAAR! [B]', 'bonus', 0.5, 0.78, 1.6);
+    }
+  }
+
+  startBulletTime() {
+    if (this.bt.active || this.bt.meter < 1 || this.state !== 'playing') return;
+    this.bt.active = true;
+    this.bt.t = BT.duration;
+    sfx.bulletIn();
+    sfx.setSlow(true);
+    this.music?.setSlow(true);
+    this.hud.setBullet(true);
+  }
+
+  _endBulletTime(silent = false) {
+    if (!this.bt.active) return;
+    this.bt.active = false;
+    this.bt.meter = 0;
+    if (!silent) sfx.bulletOut();
+    sfx.setSlow(false);
+    this.music?.setSlow(false);
+    this.hud.setBullet(false);
+  }
 
   // ------------------------------------------------------------ shooting
 
@@ -202,6 +244,7 @@ export class Game {
   knifeShot(k) {
     this.riders.destroyKnife(k);
     this.stats.knives++;
+    this.fillMeter(BT.fill.knife);
     this.addScore(SCORE.knife, k.mesh.position, 'MES GERAAKT! +' + SCORE.knife, 'bonus');
     sfx.clank();
     this.hud.hit(false);
@@ -240,10 +283,13 @@ export class Game {
       bodies += n;
       let pts = r.type === 'boss' ? SCORE.boss : SCORE.kill * n * (r.type === 'wheelie' ? SCORE.wheelieMul : 1);
       if (k.head) pts += SCORE.headshot;
+      if (this.bt.active) pts = Math.round(pts * BT.bonus);
+      this.fillMeter(BT.fill.kill * n + (k.head ? BT.fill.head : 0));
       this.stats.kills += n;
       if (k.head) this.stats.headshots++;
       if (r.type === 'boss') this.stats.bosses++;
-      const label = r.type === 'boss' ? `SPEAKER-BAAS! +${pts}` : k.head ? `HEADSHOT! +${pts}` : `+${pts}`;
+      let label = r.type === 'boss' ? `SPEAKER-BAAS! +${pts}` : k.head ? `HEADSHOT! +${pts}` : `+${pts}`;
+      if (this.bt.active) label = `SLOWMO ${label}`;
       this.addScore(pts, k.point, label, k.head || r.type === 'boss' ? 'bonus' : '');
     }
     if (bodies >= 2) {
@@ -288,14 +334,27 @@ export class Game {
       return;
     }
     if (this.state !== 'playing') return;
+    // bullet time: the world slows down, you (aiming, reloading, firing) don't
+    if (input.keysPressed.has('KeyB') || input.keysPressed.has('Space')) this.startBulletTime();
+    if (this.bt.active) {
+      this.bt.t -= dt;
+      if (this.bt.t <= 0) this._endBulletTime();
+    }
+    const target = this.bt.active ? BT.scale : 1;
+    this.bt.scale += (target - this.bt.scale) * Math.min(1, dt * 9);
+    if (Math.abs(this.bt.scale - target) < 0.002) this.bt.scale = target;
+    const gdt = dt * this.bt.scale;
+    this.hud.setMeter(this.bt.active ? this.bt.t / BT.duration : this.bt.meter, this.bt.active);
+
     const prevSec = Math.ceil(this.time);
-    this.time -= dt;
+    this.time -= gdt;
     if (Math.ceil(this.time) !== prevSec && this.time <= 5 && this.time > 0) sfx.tick();
+    if (this.time <= 10 && this.music?.intensity === 'game') this.music.setIntensity('final');
     const diff = difficulty(Math.min(1, this.elapsed / ROUND_TIME));
-    this.riders.update(dt, diff, this.elapsed);
+    this.riders.update(gdt, diff, this.elapsed);
     this.weapons.update(dt, input);
     this.weapons.tryFire(input);
-    this.updateProjectiles(dt);
+    this.updateProjectiles(dt * Math.max(this.bt.scale, 0.5));
     this.hud.setScore(this.score);
     this.hud.setTime(this.time);
     if (this.time <= 0) this.end('TIJD OP!');
@@ -304,6 +363,9 @@ export class Game {
   end(reason) {
     if (this.state === 'ended') return;
     this.state = 'ended';
+    this._endBulletTime(true);
+    this.bt.scale = 1;
+    this.music?.setIntensity('title');
     sfx.end();
     this.onEnd?.(reason, this.score, this.stats);
   }

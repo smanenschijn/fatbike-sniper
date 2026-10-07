@@ -17,6 +17,9 @@ export class Hud {
     this.damage = $('damage');
     this.center = $('center-msg');
     this.popups = $('popups');
+    this.bt = $('bt');
+    this.btFill = $('bt-fill');
+    this.touch = document.body.classList.contains('touch');
     this._last = {};
   }
 
@@ -70,6 +73,16 @@ export class Hud {
     this.scope.style.setProperty('--x', left);
     this.scope.style.setProperty('--y', top);
   }
+
+  setMeter(v, active) {
+    const pct = Math.round(v * 100);
+    if (this._last.meter === pct && this._last.active === active) return;
+    this._last.meter = pct; this._last.active = active;
+    this.btFill.style.width = `${pct}%`;
+    this.bt.classList.toggle('ready', !active && v >= 1);
+  }
+
+  setBullet(on) { document.body.classList.toggle('bullet', on); }
 
   hit(head) {
     this.hitmarker.className = '';

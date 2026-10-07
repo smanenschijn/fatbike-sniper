@@ -2,7 +2,9 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>Fatbike Sniper</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -25,7 +27,21 @@
     <div id="popups"></div>
     <div id="damage"></div>
     <div id="center-msg"></div>
+    <div id="letterbox"><div></div><div></div></div>
+    <div id="bt-banner">BULLET TIME</div>
+    <button id="bt" class="hud-btn" type="button">
+      <span class="bt-label">BULLET TIME <kbd>B</kbd></span>
+      <span class="bt-bar"><span id="bt-fill"></span></span>
+    </button>
+    <div id="touch-ui">
+      <button id="btn-fire" class="tbtn fire" type="button">VUUR</button>
+      <button id="btn-zoom" class="tbtn" type="button">ZOOM</button>
+      <button id="btn-reload" class="tbtn" type="button">R</button>
+      <button id="btn-pause" class="tbtn small" type="button">II</button>
+    </div>
+    <div id="rotate">Draai je telefoon een kwartslag 📱↻</div>
   </div>
+  <button id="btn-music" type="button" title="Muziek aan/uit (M)">♪</button>
 
   <!-- loading -->
   <div id="loading" class="screen">
@@ -42,12 +58,20 @@
     <div class="columns">
       <div class="card">
         <h3>Besturing</h3>
-        <ul class="controls">
+        <ul class="controls desktop-only">
           <li><b>Muis</b> richten</li>
           <li><b>Linkermuisknop</b> schieten</li>
           <li><b>Rechtermuisknop</b> of <b>Shift</b> inzoomen (sniper)</li>
           <li><b>1 – 4</b> of <b>scrollwiel</b> wapen wisselen</li>
-          <li><b>R</b> herladen &nbsp; <b>Esc</b> pauze</li>
+          <li><b>R</b> herladen &nbsp; <b>Esc</b> pauze &nbsp; <b>M</b> muziek</li>
+          <li><b>B</b> of <b>spatie</b> bullet time (als de meter vol is)</li>
+        </ul>
+        <ul class="controls touch-only">
+          <li><b>Slepen</b> rondkijken</li>
+          <li><b>Tik</b> op een fatbiker om te schieten</li>
+          <li><b>VUUR</b> schiet op het vizier (ingedrukt houden: katapult)</li>
+          <li><b>Wapens</b> aantikken om te wisselen, <b>ZOOM</b> voor de sniper</li>
+          <li><b>Bullet time</b> knop linksonder als de meter vol is</li>
         </ul>
       </div>
       <div class="card">

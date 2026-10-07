@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { MOUSE_SENS, PITCH_MAX, PITCH_MIN, YAW_LIMIT } from './config.js';
+import { IS_TOUCH, MOUSE_SENS, PITCH_MAX, PITCH_MIN, YAW_LIMIT } from './config.js';
+
+const TOUCH_SENS = 0.0055;
 
 const EDGE = 0.55;        // cursor mode: start turning when the cursor is this far from the centre (0..1)
 const EDGE_SPEED = 1.9;   // rad/s at the very edge
@@ -9,6 +11,7 @@ const EDGE_SPEED = 1.9;   // rad/s at the very edge
  * - 'locked': pointer lock, relative movement turns the camera (classic FPS).
  * - 'cursor': fallback when pointer lock is unavailable (embedded browsers, blocked by the user):
  *   aim with the visible cursor; pushing it to the screen edge turns the camera.
+ * - 'touch': drag to look, tap to shoot at the tapped spot; on-screen buttons for the rest.
  * Yaw 0 = looking north (-Z) over the square.
  */
 export class Input {
@@ -26,7 +29,10 @@ export class Input {
     this._wheelAcc = 0;
     this._wheelBlock = 0;
     this.locked = false;
-    this.mode = 'locked';
+    this.mode = IS_TOUCH ? 'touch' : 'locked';
+    this.pendingAim = null;  // NDC aim for the next shot (touch taps)
+    this.zoomToggle = false;
+    this.lookId = null;
     this.active = false; // true while a round is running
     this.cursor = new THREE.Vector2(0, 0); // NDC, -1..1
     this.onLockChange = null;
@@ -39,6 +45,32 @@ export class Input {
       if (this.mode === 'locked') this.onLockChange?.(this.locked);
     });
     document.addEventListener('pointerlockerror', () => this._setMode('cursor'));
+
+    // touch: one finger drags the view; a quick tap fires at the tapped spot
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch' || !this.active || this.lookId !== null) return;
+      this.lookId = e.pointerId;
+      this.look = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this.lookId) return;
+      const dx = e.clientX - this.look.x, dy = e.clientY - this.look.y;
+      this.look.x = e.clientX; this.look.y = e.clientY;
+      this.look.moved += Math.abs(dx) + Math.abs(dy);
+      const s = TOUCH_SENS * this.sensScale;
+      this.yaw = THREE.MathUtils.clamp(this.yaw - dx * s, -YAW_LIMIT, YAW_LIMIT);
+      this.pitch = THREE.MathUtils.clamp(this.pitch - dy * s, PITCH_MIN, PITCH_MAX);
+    });
+    const endTouch = (e) => {
+      if (e.pointerId !== this.lookId) return;
+      this.lookId = null;
+      if (e.type === 'pointerup' && this.look.moved < 14 && performance.now() - this.look.t < 350 && this.active) {
+        this.pendingAim = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+        this.firePressed = true;
+      }
+    };
+    canvas.addEventListener('pointerup', endTouch);
+    canvas.addEventListener('pointercancel', endTouch);
 
     document.addEventListener('mousemove', (e) => {
       if (this.mode === 'locked' && this.locked) {
@@ -80,6 +112,13 @@ export class Input {
 
   _accepting() { return this.active && (this.mode === 'cursor' || this.locked); }
 
+  // on-screen buttons
+  virtualFire(down) {
+    this.fireDown = down;
+    if (down) { this.firePressed = true; this.pendingAim = null; }
+  }
+  pressKey(code) { this.keysPressed.add(code); }
+
   _setMode(m) {
     if (this.mode === m) return;
     this.mode = m;
@@ -88,7 +127,7 @@ export class Input {
 
   /** Try pointer lock; fall back to cursor aiming if it doesn't engage. */
   lock() {
-    if (this.mode === 'cursor') return;
+    if (this.mode !== 'locked') return;
     try {
       const p = this.canvas.requestPointerLock?.();
       if (p && p.catch) p.catch(() => this._setMode('cursor'));
@@ -100,7 +139,7 @@ export class Input {
   unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
 
   /** Zoom: right button or holding Shift (handy on a trackpad). */
-  get zoomHeld() { return this.aimDown || this.keysDown.has('ShiftLeft') || this.keysDown.has('ShiftRight'); }
+  get zoomHeld() { return this.aimDown || this.zoomToggle || this.keysDown.has('ShiftLeft') || this.keysDown.has('ShiftRight'); }
 
   /** Per-frame: edge-turning in cursor mode. */
   update(dt) {
@@ -113,13 +152,15 @@ export class Input {
 
   /** World-space aim direction (screen centre when locked, the cursor otherwise). */
   aimDirection(camera, out = new THREE.Vector3()) {
-    if (this.mode !== 'cursor') return camera.getWorldDirection(out);
-    out.set(this.cursor.x, this.cursor.y, 0.5).unproject(camera);
+    const p = this.pendingAim || (this.mode === 'cursor' ? this.cursor : null);
+    if (!p) return camera.getWorldDirection(out);
+    out.set(p.x, p.y, 0.5).unproject(camera);
     return out.sub(camera.getWorldPosition(new THREE.Vector3())).normalize();
   }
 
   endFrame() {
     this.firePressed = false;
+    this.pendingAim = null;
     this.keysPressed.clear();
     this.wheel = 0;
   }
