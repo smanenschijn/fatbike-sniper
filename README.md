@@ -6,6 +6,8 @@ Een komische 3D first-person browsergame (Three.js). Alle modellen worden met Py
 
 ## Spelen
 
+Kies op het titelscherm de speeltijd (1, 3 of 5 minuten) en het niveau (makkelijk, normaal of moeilijk). De Hall of Fame houdt per combinatie een eigen top 10 bij.
+
 ```bash
 npm install
 npm run dev
@@ -24,4 +26,4 @@ npm run assets   # comprimeert assets/models -> public/models (WebP + meshopt, L
 
 Zie [DESIGN.md](DESIGN.md) voor het ontwerp.
 
-De soundtrack ("Fatbike Flow") wordt live gesynthetiseerd met Web Audio, inclusief de geautotunede robotstem. Er zijn geen audiobestanden nodig.
+De soundtrack staat in `public/audio/fatbike-flow.mp3` (gemaakt met Mureka, zie [docs/mureka-soundtrack.md](docs/mureka-soundtrack.md)). Ontbreekt het bestand, dan valt de game terug op een live gesynthetiseerde versie in Web Audio.

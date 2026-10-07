@@ -58,6 +58,7 @@ Richten is arcade: directe treffers, behalve bij de katapult en de bazooka.
 - Gratis CC0-geluidseffecten (schoten, explosies, fietsbellen, terrasgeroezemoes) en een opzwepend arcadedeuntje
 
 ## Flow
+- Speeltijd 1, 3 of 5 minuten en niveau makkelijk, normaal of moeilijk (zie `LEVELS` in `src/config.js`). Lange rondes golven in drukte en de ober brengt elke minuut een nieuw ijsje (+1 hartje)
 - Titelscherm → ronde van 60 s → eindscherm met statistieken (score, treffers, headshots, nauwkeurigheid, beste trickshot, grappige titel)
 - Highscores voorlopig lokaal; de code is zo opgezet dat er later een online leaderboard (Supabase/Firebase) achter kan
 

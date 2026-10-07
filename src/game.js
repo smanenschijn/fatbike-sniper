@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BULLET_TIME as BT, HEARTS, ROUND_TIME, SCORE, difficulty } from './config.js';
+import { BULLET_TIME as BT, LEVELS, ROUND_TIME, SCORE, difficulty, roundIntensity } from './config.js';
 import { sfx } from './audio.js';
 
 const MULTI_NAMES = { 2: 'DUBBEL!', 3: 'TRIPLE!', 4: 'QUADRA!', 5: 'MEGA!' };
@@ -23,15 +23,22 @@ export class Game {
     riders.hooks.onPlayerHit = (k) => this.onPlayerHit(k);
   }
 
-  reset() {
+  reset({ roundTime = ROUND_TIME, level = 'normal' } = {}) {
+    this.roundTime = roundTime;
+    this.levelKey = level;
+    this.level = LEVELS[level] || LEVELS.normal;
+    this.maxHearts = this.level.hearts;
+    this.riders.settings = { accuracy: this.level.accuracy };
+    this.world.resetIjsje();
+    this.nextRefill = 60;
     this.riders.clear();
     this.effects.clear();
     for (const p of this.projectiles) this.scene.remove(p.mesh);
     this.projectiles = [];
-    this.weapons.reset();
+    this.weapons.reset({ rockets: { 60: 5, 180: 12, 300: 18 }[roundTime] ?? 5 });
     this.score = 0;
-    this.time = ROUND_TIME;
-    this.hearts = HEARTS;
+    this.time = roundTime;
+    this.hearts = this.maxHearts;
     this.stats = { shots: 0, hits: 0, kills: 0, headshots: 0, knives: 0, bestMulti: 1, bosses: 0 };
     this._endBulletTime(true);
     this.bt = { meter: 0, active: false, t: 0, scale: 1 };
@@ -39,12 +46,15 @@ export class Game {
     this.countdown = 3.6;
     this.lastCount = null;
     this.state = 'countdown';
-    this.hud.setHearts(this.hearts, HEARTS);
+    this.hud.setHearts(this.hearts, this.maxHearts);
     this.hud.setScore(0);
     this.hud.setTime(this.time);
   }
 
-  get elapsed() { return ROUND_TIME - this.time; }
+  get elapsed() { return this.roundTime - this.time; }
+
+  /** Score multiplier for the chosen level. */
+  pts(n) { return Math.round(n * this.level.score); }
 
   /** World speed (1 = normal, BT.scale in bullet time). */
   get timeScale() { return this.bt.scale; }
@@ -57,7 +67,7 @@ export class Game {
   fillMeter(x) {
     if (this.bt.active || this.state !== 'playing') return;
     const was = this.bt.meter;
-    this.bt.meter = Math.min(1, was + x);
+    this.bt.meter = Math.min(1, was + x * this.level.btFill);
     if (was < 1 && this.bt.meter >= 1) {
       sfx.ready();
       this.effects.screenPopup(this.hud.touch ? 'BULLET TIME KLAAR!' : 'BULLET TIME KLAAR! [B]', 'bonus', 0.5, 0.78, 1.6);
@@ -238,14 +248,15 @@ export class Game {
 
   afterShot(hit, projectile = false) {
     if (hit) this.stats.hits++;
-    else if (this.state === 'playing' && Math.random() < 0.7) this.riders.retaliate();
+    else if (this.state === 'playing' && Math.random() < this.level.retaliate) this.riders.retaliate();
   }
 
   knifeShot(k) {
     this.riders.destroyKnife(k);
     this.stats.knives++;
     this.fillMeter(BT.fill.knife);
-    this.addScore(SCORE.knife, k.mesh.position, 'MES GERAAKT! +' + SCORE.knife, 'bonus');
+    const kp = this.pts(SCORE.knife);
+    this.addScore(kp, k.mesh.position, 'MES GERAAKT! +' + kp, 'bonus');
     sfx.clank();
     this.hud.hit(false);
   }
@@ -284,6 +295,7 @@ export class Game {
       let pts = r.type === 'boss' ? SCORE.boss : SCORE.kill * n * (r.type === 'wheelie' ? SCORE.wheelieMul : 1);
       if (k.head) pts += SCORE.headshot;
       if (this.bt.active) pts = Math.round(pts * BT.bonus);
+      pts = this.pts(pts);
       this.fillMeter(BT.fill.kill * n + (k.head ? BT.fill.head : 0));
       this.stats.kills += n;
       if (k.head) this.stats.headshots++;
@@ -293,7 +305,7 @@ export class Game {
       this.addScore(pts, k.point, label, k.head || r.type === 'boss' ? 'bonus' : '');
     }
     if (bodies >= 2) {
-      const bonus = SCORE.multi * (bodies - 1);
+      const bonus = this.pts(SCORE.multi * (bodies - 1));
       this.score += bonus;
       this.stats.bestMulti = Math.max(this.stats.bestMulti, bodies);
       this.effects.screenPopup(`${MULTI_NAMES[Math.min(bodies, 5)]} +${bonus}`, 'big', 0.5, 0.3, 1.3);
@@ -304,12 +316,13 @@ export class Game {
   onPlayerHit(knife) {
     if (this.state !== 'playing') return;
     this.hearts--;
-    this.hud.setHearts(this.hearts, HEARTS);
+    this.hud.setHearts(this.hearts, this.maxHearts);
     this.hud.hurt();
     this.effects.addShake(1.0);
     sfx.hurt();
-    this.effects.screenPopup(['AU!', 'AUWW!', 'NEE, MIJN IJSJE!'][HEARTS - 1 - this.hearts] || 'AU!', 'bad', 0.5, 0.55, 1.0);
-    if (this.hearts === HEARTS - 1) this.world.knockOverIjsje(knife.vel.clone().setY(0).normalize());
+    const fell = !this.world.ijsjeFall;
+    this.effects.screenPopup(fell ? 'NEE, MIJN IJSJE!' : this.hearts === 1 ? 'AUWW! LAATSTE LEVEN!' : 'AU!', 'bad', 0.5, 0.55, 1.0);
+    if (fell) this.world.knockOverIjsje(knife.vel.clone().setY(0).normalize());
     if (this.hearts <= 0) this.end('NEERGESTOKEN!');
   }
 
@@ -350,7 +363,16 @@ export class Game {
     this.time -= gdt;
     if (Math.ceil(this.time) !== prevSec && this.time <= 5 && this.time > 0) sfx.tick();
     if (this.time <= 10 && this.music?.intensity === 'game') this.music.setIntensity('final');
-    const diff = difficulty(Math.min(1, this.elapsed / ROUND_TIME));
+    const diff = difficulty(roundIntensity(this.elapsed, this.roundTime), this.level);
+    // long rounds: the waiter brings a fresh ice cream (and a heart) every minute
+    if (this.roundTime > 60 && this.elapsed >= this.nextRefill && this.time > 5) {
+      this.nextRefill += 60;
+      const healed = this.hearts < this.maxHearts;
+      if (healed) { this.hearts++; this.hud.setHearts(this.hearts, this.maxHearts); }
+      this.world.resetIjsje();
+      this.effects.screenPopup(healed ? 'OBER: NIEUW IJSJE! +1 ♥' : 'OBER: NIEUW IJSJE!', 'bonus', 0.5, 0.7, 2);
+      sfx.ready();
+    }
     this.riders.update(gdt, diff, this.elapsed);
     this.weapons.update(dt, input);
     this.weapons.tryFire(input);

@@ -54,6 +54,20 @@
   <div id="title" class="screen hidden">
     <div class="logo"><span class="l1">FATBIKE</span><span class="l2">SNIPER</span></div>
     <p class="tagline">Zit. Richt. Schiet. Hoeveel kun jij er neerhalen?</p>
+    <div class="options">
+      <div class="opt-group" id="opt-time" role="radiogroup" aria-label="Speeltijd">
+        <span class="opt-label">TIJD</span>
+        <button type="button" data-v="60">1 MIN</button>
+        <button type="button" data-v="180">3 MIN</button>
+        <button type="button" data-v="300">5 MIN</button>
+      </div>
+      <div class="opt-group" id="opt-level" role="radiogroup" aria-label="Moeilijkheid">
+        <span class="opt-label">NIVEAU</span>
+        <button type="button" data-v="easy">MAKKELIJK</button>
+        <button type="button" data-v="normal">NORMAAL</button>
+        <button type="button" data-v="hard">MOEILIJK</button>
+      </div>
+    </div>
     <button id="start-btn" class="big-btn">SPELEN</button>
     <div class="columns">
       <div class="card">
@@ -85,7 +99,7 @@
         </ul>
       </div>
       <div class="card">
-        <h3>Hall of Fame</h3>
+        <h3>Hall of Fame <small id="hs-mode-title" class="hs-mode"></small></h3>
         <ol id="highscores-title" class="highscores"></ol>
       </div>
     </div>
@@ -101,6 +115,7 @@
   <div id="end" class="screen hidden">
     <h2 id="end-reason">TIJD OP!</h2>
     <div id="end-title" class="rank"></div>
+    <div id="end-mode" class="hs-mode"></div>
     <div id="end-score" class="final-score"></div>
     <div id="end-stats" class="stats"></div>
     <div id="name-entry">
@@ -108,7 +123,10 @@
       <button id="save-btn" class="big-btn small">OPSLAAN</button>
     </div>
     <ol id="highscores-end" class="highscores"></ol>
-    <button id="again-btn" class="big-btn">NOG EEN KEER</button>
+    <div class="end-buttons">
+      <button id="menu-btn" class="big-btn small ghost">MENU</button>
+      <button id="again-btn" class="big-btn">NOG EEN KEER</button>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

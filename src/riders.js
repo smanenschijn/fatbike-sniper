@@ -42,6 +42,7 @@ export class Riders {
     this.knives = [];
     this.spawnTimer = 1.0;
     this.retaliateCooldown = 0;
+    this.settings = { accuracy: 0.6 };
 
     const knife = this.hiTemplate.getObjectByName('Rider_Knife').clone();
     knife.position.set(0, 0, 0);
@@ -339,7 +340,7 @@ export class Riders {
     const eye = this.hooks.playerEye;
     const cands = this.list.filter((r) => r.alive && r.knifeCooldown <= 0 && r.type !== 'wheelie' && r.root.position.distanceTo(eye) < 42);
     if (!cands.length) return;
-    this.throwKnife(pick(cands), Math.random() < 0.55);
+    this.throwKnife(pick(cands), Math.random() < this.settings.accuracy - 0.05);
     this.retaliateCooldown = 1.4;
   }
 
@@ -412,7 +413,7 @@ export class Riders {
       if (r.attackPoint && !r.thrown) {
         const d = Math.hypot(r.root.position.x - r.attackPoint.x, r.root.position.z - r.attackPoint.z);
         if (d < 6) speed *= 0.65; // slow down to aim
-        if (d < 2.5) this.throwKnife(r, Math.random() < 0.6);
+        if (d < 2.5) this.throwKnife(r, Math.random() < this.settings.accuracy);
       }
       r.dist += speed * dt;
       if (r.dist >= r.len) { // escaped down a street

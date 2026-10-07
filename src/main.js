@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FOV, HEARTS, IS_TOUCH, difficulty } from './config.js';
+import { FOV, IS_TOUCH, LEVELS, ROUND_OPTIONS, difficulty } from './config.js';
 import { BulletTimeShader } from './bulletShader.js';
 import { Music } from './music.js';
 import { loadAssets } from './assets.js';
@@ -51,10 +51,43 @@ addEventListener('resize', () => {
   composer.setSize(innerWidth, innerHeight);
 });
 
-// ---------------------------------------------------------------- highscores (per browser)
+// ---------------------------------------------------------------- round settings
+const SETTINGS_KEY = 'fatbike-sniper-settings';
+const settings = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+    return { roundTime: ROUND_OPTIONS.includes(s.roundTime) ? s.roundTime : 60, level: LEVELS[s.level] ? s.level : 'normal' };
+  } catch { return { roundTime: 60, level: 'normal' }; }
+})();
+const modeLabel = (s = settings) => `${s.roundTime / 60} min · ${LEVELS[s.level].label}`;
+function syncOptions() {
+  for (const [id, key] of [['opt-time', 'roundTime'], ['opt-level', 'level']]) {
+    for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === String(settings[key])));
+  }
+  $('hs-mode-title').textContent = modeLabel();
+  renderScores($('highscores-title'));
+}
+for (const [id, key, parse] of [['opt-time', 'roundTime', Number], ['opt-level', 'level', String]]) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    settings[key] = parse(b.dataset.v);
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
+    sfx.init(); sfx.click();
+    syncOptions();
+  });
+}
+
+// ---------------------------------------------------------------- highscores (per browser, per mode)
 const HS_KEY = 'fatbike-sniper-highscores';
-const loadScores = () => { try { return JSON.parse(localStorage.getItem(HS_KEY)) || []; } catch { return []; } };
-const saveScores = (list) => { try { localStorage.setItem(HS_KEY, JSON.stringify(list)); } catch { /* private mode */ } };
+const hsKey = () => `${HS_KEY}:${settings.roundTime}:${settings.level}`;
+try { // scores from before modes existed were 1 minute / normal
+  const old = localStorage.getItem(HS_KEY);
+  if (old && !localStorage.getItem(`${HS_KEY}:60:normal`)) localStorage.setItem(`${HS_KEY}:60:normal`, old);
+  if (old) localStorage.removeItem(HS_KEY);
+} catch { /* ignore */ }
+const loadScores = () => { try { return JSON.parse(localStorage.getItem(hsKey())) || []; } catch { return []; } };
+const saveScores = (list) => { try { localStorage.setItem(hsKey(), JSON.stringify(list)); } catch { /* private mode */ } };
 function renderScores(el, highlight) {
   const list = loadScores();
   el.innerHTML = list.length
@@ -106,7 +139,8 @@ async function boot() {
 
 function showTitle() {
   mode = 'title';
-  renderScores($('highscores-title'));
+  syncOptions();
+  $('end').classList.add('hidden');
   $('title').classList.remove('hidden');
   hud.show(false);
 }
@@ -125,7 +159,7 @@ function startGame() {
   hud.show(true);
   input.yaw = 0;
   input.pitch = -0.05;
-  game.reset();
+  game.reset({ ...settings });
   mode = 'playing';
   input.active = true;
   document.body.classList.add('playing');
@@ -141,7 +175,8 @@ function showEnd(reason, score, stats) {
   setTimeout(() => {
     hud.show(false);
     $('end-reason').textContent = reason;
-    $('end-title').textContent = rankTitle(score);
+    $('end-title').textContent = rankTitle(score / ({ 60: 1, 180: 2.2, 300: 3.2 }[settings.roundTime] || 1));
+    $('end-mode').textContent = modeLabel();
     $('end-score').textContent = score;
     const acc = stats.shots ? Math.round((stats.hits / stats.shots) * 100) : 0;
     $('end-stats').innerHTML = [
@@ -172,6 +207,7 @@ $('save-btn').addEventListener('click', () => {
 $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('save-btn').click(); });
 $('start-btn').addEventListener('click', startGame);
 $('again-btn').addEventListener('click', startGame);
+$('menu-btn').addEventListener('click', showTitle);
 // ---------------------------------------------------------------- music + on-screen buttons
 const startMusic = () => music.start();
 addEventListener('pointerdown', startMusic, { once: true });
@@ -233,7 +269,7 @@ function loop() {
   if (mode === 'playing' || mode === 'paused') {
     const ws = weapons.hudState();
     hud.setWeapons(ws);
-    hud.setHearts(game.hearts, HEARTS);
+    hud.setHearts(game.hearts, game.maxHearts);
     $('btn-zoom').style.display = ws.key === 'sniper' ? '' : 'none';
     if (ws.key !== 'sniper' && input.zoomToggle) { input.zoomToggle = false; $('btn-zoom').classList.remove('on'); }
   }

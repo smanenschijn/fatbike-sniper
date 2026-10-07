@@ -122,6 +122,12 @@ export class World {
     this.ijsje.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     scene.add(this.ijsje);
     this.ijsjeFall = null;
+    this.ijsjeBits = [];
+    this._ijsInit = {
+      q: this.ijsje.quaternion.clone(),
+      parts: ['IJsje_Scoops', 'IJsje_Topping'].map((n) => this.ijsje.getObjectByName(n)).filter(Boolean)
+        .map((o) => ({ o, parent: o.parent, pos: o.position.clone(), quat: o.quaternion.clone() })),
+    };
 
     this.raycaster = new THREE.Raycaster();
     this.raycaster.firstHitOnly = true;
@@ -147,6 +153,19 @@ export class World {
       this.scene.attach(o);
       return { o, v, spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8) };
     });
+  }
+
+  /** Put a fresh ice cream on the table. */
+  resetIjsje() {
+    const init = this._ijsInit;
+    this.ijsje.quaternion.copy(init.q);
+    for (const p of init.parts) {
+      p.parent.add(p.o);
+      p.o.position.copy(p.pos);
+      p.o.quaternion.copy(p.quat);
+    }
+    this.ijsjeFall = null;
+    this.ijsjeBits = [];
   }
 
   update(dt) {

@@ -57,9 +57,9 @@ export class Weapons {
 
   get current() { return this.list[this.index]; }
 
-  reset() {
+  reset({ rockets = 5 } = {}) {
     for (const w of this.list) {
-      w.ammo = w.mag; w.reserveLeft = w.reserve; w.cooldown = 0; w.reloading = 0; w.anim = 0;
+      w.ammo = w.mag; w.reserveLeft = w.key === 'bazooka' ? rockets : w.reserve; w.cooldown = 0; w.reloading = 0; w.anim = 0;
       if (w.parts.rocket) w.parts.rocket.visible = true;
     }
     this.select(0, true);

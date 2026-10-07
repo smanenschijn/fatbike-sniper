@@ -26,8 +26,8 @@ export class Hud {
   show(on) { this.el.classList.toggle('hidden', !on); }
 
   setHearts(n, max) {
-    if (this._last.hearts === n) return;
-    this._last.hearts = n;
+    if (this._last.hearts === `${n}/${max}`) return;
+    this._last.hearts = `${n}/${max}`;
     this.hearts.innerHTML = Array.from({ length: max }, (_, i) => HEART.replace('<svg', `<svg class="${i < n ? '' : 'lost'}"`)).join('');
   }
 
@@ -42,7 +42,7 @@ export class Hud {
     const s = Math.max(0, Math.ceil(t));
     if (this._last.time === s) return;
     this._last.time = s;
-    this.timer.textContent = s;
+    this.timer.textContent = s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : s;
     this.timer.classList.toggle('urgent', s <= 10);
   }
 

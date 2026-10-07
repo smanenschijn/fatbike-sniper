@@ -8,7 +8,15 @@ export const IS_TOUCH = typeof window !== 'undefined'
   && (new URLSearchParams(location.search).has('touch') || matchMedia('(pointer: coarse)').matches
     || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches));
 
-export const ROUND_TIME = 60;
+export const ROUND_TIME = 60; // default
+export const ROUND_OPTIONS = [60, 180, 300];
+
+/** Difficulty presets: multipliers on the base curve + player/knife tuning. */
+export const LEVELS = {
+  easy: { label: 'Makkelijk', spawn: 1.35, alive: 0.7, attack: 0.5, speed: 0.88, accuracy: 0.35, retaliate: 0.4, hearts: 5, btFill: 1.35, score: 0.8 },
+  normal: { label: 'Normaal', spawn: 1, alive: 1, attack: 1, speed: 1, accuracy: 0.6, retaliate: 0.7, hearts: 3, btFill: 1, score: 1 },
+  hard: { label: 'Moeilijk', spawn: 0.72, alive: 1.3, attack: 1.5, speed: 1.15, accuracy: 0.8, retaliate: 0.9, hearts: 3, btFill: 0.8, score: 1.3 },
+};
 
 export const BULLET_TIME = {
   duration: 4.5,      // real seconds
@@ -48,13 +56,24 @@ export const SCORE = {
   wheelieMul: 2,
 };
 
-/** Difficulty ramps over the round (t in 0..1). */
-export const difficulty = (t) => ({
-  spawnInterval: THREE.MathUtils.lerp(1.9, 0.5, t),
-  maxAlive: Math.round(THREE.MathUtils.lerp(5, 18, t) * (IS_TOUCH ? 0.75 : 1)),
-  attackChance: THREE.MathUtils.lerp(0.12, 0.45, t),
-  speedMul: THREE.MathUtils.lerp(1.0, 1.35, t),
+/** Difficulty ramps over the round (t in 0..1) and is scaled by the chosen level. */
+export const difficulty = (t, level = LEVELS.normal) => ({
+  spawnInterval: THREE.MathUtils.lerp(1.9, 0.5, t) * level.spawn,
+  maxAlive: Math.max(3, Math.round(THREE.MathUtils.lerp(5, 18, t) * level.alive * (IS_TOUCH ? 0.75 : 1))),
+  attackChance: Math.min(0.85, THREE.MathUtils.lerp(0.12, 0.45, t) * level.attack),
+  speedMul: THREE.MathUtils.lerp(1.0, 1.35, t) * level.speed,
 });
+
+/**
+ * How intense the round is at `elapsed` seconds: ramps up over the first ~90 s, then (in longer rounds)
+ * breathes in waves so 3–5 minute games have calmer moments between the rushes.
+ */
+export function roundIntensity(elapsed, roundTime) {
+  const ramp = Math.min(1, elapsed / Math.min(roundTime, 90));
+  if (roundTime <= 60 || elapsed < 90) return ramp;
+  const wave = 0.5 + 0.5 * Math.sin(((elapsed - 90) / 50) * Math.PI * 2 - Math.PI / 2);
+  return 0.7 + 0.3 * (1 - wave) + Math.min(0.15, (elapsed - 90) / 1200); // dips to ~0.7, peaks at 1
+}
 
 export const SUIT_COLORS = ['#1a1a20', '#1a1a20', '#5d6066', '#1e2a4a', '#e9e9ec', '#6b1d2a'];
 export const BIKE_COLORS = [
