@@ -375,7 +375,7 @@ def export_glb(path, objects):
     for o in objects:
         o.select_set(True)
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True,
-                              export_apply=True, export_yup=True)
+                              export_apply=True, export_yup=True, export_extras=True)
 
 
 # ---------------------------------------------------------------- textured materials / UVs / text / instances

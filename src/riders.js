@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ATTACK_Z, BIKE_COLORS, IS_TOUCH, BOSS_SHOUTS, ENTRIES, FOUNTAIN, GRAVITY, RING_RADIUS, SHOUTS, SUIT_COLORS, THROW_SHOUTS,
+  ATTACK_Z, BIKE_COLORS, IS_TOUCH, BOSS_SHOUTS, ENTRIES, FOUNTAIN, GRAVITY, PAIN_SHOUTS, PALETTES, RING_RADIUS, SHOUTS, THROW_SHOUTS,
 } from './config.js';
 import { sfx } from './audio.js';
 
@@ -35,8 +35,8 @@ export class Riders {
     this.scene = scene;
     this.effects = effects;
     this.hooks = hooks; // { onPlayerHit(knife), playerEye }
-    this.hiTemplate = assets.fatbiker.scene;
-    this.loTemplate = assets.fatbikerLod.scene;
+    this.lib = [assets.riders.scene, assets.ridersLod.scene].map(prepareLibrary);
+    this.variantNames = this.lib[0].variants.map((v) => v.name);
     this.matCache = new Map();
     this.list = [];
     this.knives = [];
@@ -44,7 +44,7 @@ export class Riders {
     this.retaliateCooldown = 0;
     this.settings = { accuracy: 0.6 };
 
-    const knife = this.hiTemplate.getObjectByName('Rider_Knife').clone();
+    const knife = this.lib[0].variants[0].getObjectByName('Rider_Knife').clone();
     knife.position.set(0, 0, 0);
     knife.rotation.set(0, 0, 0);
     knife.scale.setScalar(1.6); // cartoon-sized when flying at you
@@ -64,35 +64,60 @@ export class Riders {
     return this.matCache.get(key);
   }
 
-  _dress(model, look) {
-    model.traverse((o) => {
+  /** Roll a person: body/outfit variant + independent skin, hair and clothing colours. */
+  _person(exclude) {
+    const names = this.variantNames.filter((n) => n !== exclude);
+    const name = pick(names);
+    const meta = this.lib[0].variants.find((v) => v.name === name).userData;
+    const light = (c) => ['#e9e9ec', '#f4cf3a', '#d6d0c4', '#c9b48a'].includes(c);
+    const skin = pick(PALETTES.skin);
+    const hair = pick(PALETTES.hair[meta.hairGroup] || PALETTES.hair.young);
+    const top = pick(meta.top === 'cardigan' ? PALETTES.cardigan : PALETTES.top);
+    const bottom = pick(PALETTES.bottom[meta.bottom] || PALETTES.bottom.shorts);
+    return {
+      name, meta,
+      colors: {
+        Skin: skin, SkinShade: shade(skin, 0.8), Hair: hair, Brow: meta.hairGroup === 'grey' ? shade(hair, 0.85) : shade(hair, 0.7),
+        Top: top, TopTrim: light(top) ? '#1a1a20' : '#f4f4f4', Bottom: bottom, BottomTrim: light(bottom) ? '#1a1a20' : '#f4f4f4',
+        Cap: pick(meta.cap === 'flat' ? PALETTES.flatcap : PALETTES.cap), Shoe: pick(PALETTES.shoe),
+      },
+      shades: Math.random() < 0.4,
+    };
+  }
+
+  _paint(obj, colors) {
+    obj.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = false; // riders use a cheap blob shadow instead
-      const n = o.material.name;
-      if (n === 'TracksuitBlack') o.material = this._variant(o.material, look.suit);
-      else if (n === 'TracksuitStripe' && look.suit === '#e9e9ec') o.material = this._variant(o.material, '#1a1a20');
-      else if (n === 'BikeFrame') o.material = this._variant(o.material, look.bike.frame);
-      else if (n === 'BikeAccent') o.material = this._variant(o.material, look.bike.accent);
+      const c = colors[o.material.name];
+      if (c) o.material = this._variant(o.material, c);
     });
-    const shades = model.getObjectByName('Rider_Sunglasses');
-    if (shades) shades.visible = look.shades;
+  }
+
+  _level(lib, people, bike, withBasket) {
+    const lvl = new THREE.Group();
+    const b = lib.bike.clone(true);
+    this._paint(b, { BikeFrame: bike.frame, BikeAccent: bike.accent });
+    lvl.add(b);
+    if (withBasket && lib.basket) b.add(lib.basket.clone(true));
+    people.forEach((p, i) => {
+      const r = lib.variants.find((v) => v.name === p.name).clone(true);
+      r.name = i === 0 ? 'Rider' : 'Passenger';
+      if (i > 0) r.position.add(PASSENGER_OFFSET);
+      this._paint(r, p.colors);
+      const shades = r.getObjectByName('Rider_Sunglasses');
+      if (shades) shades.visible = p.shades;
+      if (i > 0) { const k = r.getObjectByName('Rider_Knife'); if (k) k.visible = false; }
+      lvl.add(r);
+    });
+    return lvl;
   }
 
   _buildModel(type) {
-    const look = { suit: pick(SUIT_COLORS), bike: pick(BIKE_COLORS), shades: Math.random() < 0.45 };
-    const levels = [this.hiTemplate.clone(true), this.loTemplate.clone(true)];
-    for (const lvl of levels) {
-      this._dress(lvl, look);
-      if (type === 'duo') {
-        const driver = lvl.getObjectByName('Rider');
-        const pas = driver.clone(true);
-        pas.name = 'Passenger';
-        pas.position.add(PASSENGER_OFFSET);
-        const shades = pas.getObjectByName('Rider_Sunglasses');
-        if (shades) shades.visible = !look.shades;
-        driver.parent.add(pas);
-      }
-    }
+    const driver = this._person();
+    const people = type === 'duo' ? [driver, this._person(driver.name)] : [driver];
+    const bike = pick(BIKE_COLORS);
+    const levels = this.lib.map((lib) => this._level(lib, people, bike, driver.meta.basket));
     const lod = new THREE.LOD();
     lod.addLevel(levels[0], 0);
     lod.addLevel(levels[1], LOD_DIST);
@@ -116,7 +141,7 @@ export class Riders {
       pivot.add(boombox);
       root.scale.setScalar(1.25);
     }
-    return { root, pivot, lod, levels, boombox, blob };
+    return { root, pivot, lod, levels, boombox, blob, age: driver.meta.age };
   }
 
   // ------------------------------------------------------------ routes
@@ -252,7 +277,7 @@ export class Riders {
     r.hp -= amount;
     if (r.hp > 0) {
       r.flash = 0.15;
-      this.effects.bubble(r.root, new THREE.Vector3(0, 2.9, 0), pick(['AUW!', 'HÉ!', 'Mijn speaker!', 'Wollah, dat doet pijn!']), false, 1.2);
+      this.effects.bubble(r.root, new THREE.Vector3(0, 2.9, 0), pick(r.type === 'boss' ? [...PAIN_SHOUTS, 'Mijn speaker!'] : PAIN_SHOUTS), false, 1.2);
       return false;
     }
     this.knockOff(r, info);
@@ -261,8 +286,8 @@ export class Riders {
 
   knockOff(r, { dir, power = 6, explode = false }) {
     r.alive = false;
-    const idx = Math.max(0, r.lod.getCurrentLevel());
-    const lvl = r.levels[Math.min(idx, r.levels.length - 1)];
+    // flying bodies move too fast to notice detail: always use the light level for the crash
+    const lvl = r.levels[r.levels.length - 1];
     for (const other of r.levels) if (other !== lvl) r.lod.remove(other);
     for (let i = r.lod.levels.length - 1; i >= 0; i--) if (r.lod.levels[i].object !== lvl) r.lod.levels.splice(i, 1);
     r.lod.autoUpdate = false;
@@ -435,7 +460,7 @@ export class Riders {
       r.shoutTimer -= dt;
       if (r.shoutTimer <= 0) {
         r.shoutTimer = rand(4, 8);
-        if (dist < 40) this.effects.bubble(r.root, new THREE.Vector3(0, 2.5, 0), pick(r.type === 'boss' ? BOSS_SHOUTS : SHOUTS));
+        if (dist < 40) this.effects.bubble(r.root, new THREE.Vector3(0, 2.5, 0), pick(r.type === 'boss' ? BOSS_SHOUTS : Math.random() < 0.55 ? SHOUTS[r.age] || SHOUTS.any : SHOUTS.any));
       }
       r.bellTimer -= dt;
       if (r.bellTimer <= 0) {
@@ -453,6 +478,22 @@ export class Riders {
     this.knives = [];
     this.spawnTimer = 1.0;
   }
+}
+
+/** Index the rider library: shared bike, optional basket and the rider variants (names normalised). */
+function prepareLibrary(scene) {
+  scene.traverse((o) => { // three strips the dot from Blender's "Name.001" -> "Name001"
+    if (/^(Rider|Bike)_/.test(o.name) && !/^Rider_V\d+$/.test(o.name)) o.name = o.name.replace(/\d{3}$/, '');
+  });
+  return {
+    bike: scene.getObjectByName('Bike'),
+    basket: scene.getObjectByName('Bike_Basket'),
+    variants: scene.children.filter((o) => /^Rider_V\d+$/.test(o.name)),
+  };
+}
+
+function shade(hex, f) {
+  return '#' + new THREE.Color(hex).multiplyScalar(f).getHexString();
 }
 
 const BLOB_GEO = new THREE.CircleGeometry(0.85, 24);

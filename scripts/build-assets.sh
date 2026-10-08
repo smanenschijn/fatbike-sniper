@@ -16,12 +16,13 @@ compress() {  # in out
 
 echo "Compressing models..."
 compress assets/models/square.glb "$OUT/square.glb"
-compress assets/models/fatbiker.glb "$OUT/fatbiker.glb"
+compress assets/models/riders.glb "$OUT/riders.glb"
 compress assets/models/ijsje.glb "$OUT/ijsje.glb"
 for w in assets/models/weapons/*.glb; do compress "$w" "$OUT/weapons/$(basename "$w")"; done
 
-echo "Fatbiker LOD..."
-$GT weld assets/models/fatbiker.glb "$TMP/w.glb" >/dev/null
-$GT simplify "$TMP/w.glb" "$TMP/s.glb" --ratio 0.15 --error 0.004 >/dev/null
-compress "$TMP/s.glb" "$OUT/fatbiker_lod.glb"
+echo "Riders LOD..."
+$GT weld assets/models/riders.glb "$TMP/w.glb" >/dev/null
+$GT simplify "$TMP/w.glb" "$TMP/s.glb" --ratio 0.12 --error 0.005 >/dev/null
+compress "$TMP/s.glb" "$OUT/riders_lod.glb"
+rm -f "$OUT/fatbiker.glb" "$OUT/fatbiker_lod.glb"
 rm -rf "$TMP"

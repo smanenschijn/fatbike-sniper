@@ -18,7 +18,7 @@ Besturing: muis/trackpad richten (op mobiel: slepen om te kijken, tikken om te s
 ## Modellen opnieuw bouwen
 
 ```bash
-/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_fatbiker.py
+/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_riders.py   # fiets + 12 rijder-typen
 /Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_square.py
 /Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_weapons.py
 npm run assets   # comprimeert assets/models -> public/models (WebP + meshopt, LOD)

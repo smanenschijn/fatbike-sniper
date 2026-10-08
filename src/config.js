@@ -75,7 +75,26 @@ export function roundIntensity(elapsed, roundTime) {
   return 0.7 + 0.3 * (1 - wave) + Math.min(0.15, (elapsed - 90) / 1200); // dips to ~0.7, peaks at 1
 }
 
-export const SUIT_COLORS = ['#1a1a20', '#1a1a20', '#5d6066', '#1e2a4a', '#e9e9ec', '#6b1d2a'];
+// ---- the crowd: colours are rolled per rider, independent of shape, so everyone gets mixed
+export const PALETTES = {
+  skin: ['#f6d7c3', '#efc3a4', '#e6b18f', '#d9a07a', '#c98d62', '#b77a52', '#a06640', '#8a5536', '#6f4330', '#5a3526', '#46291d'],
+  hair: {
+    young: ['#1d1714', '#1d1714', '#3b2a20', '#5a3d2b', '#7a5236', '#a5774c', '#d8b276', '#e8d3a0', '#9c3b22', '#c25a2c', '#ff6fb5', '#5ec8ff'],
+    grey: ['#d8d8d8', '#e8e8e8', '#bdbdbd', '#f2efe8', '#a8a8a8'],
+  },
+  top: ['#1a1a20', '#e9e9ec', '#c8302a', '#2b5a8c', '#2d6a45', '#f4cf3a', '#f08a24', '#ff6fb5', '#7a5cff', '#5d6066', '#6b1d2a', '#35c2c2'],
+  cardigan: ['#d98aa8', '#8aa8d9', '#c9b48a', '#9c6b8a', '#7a9a6a'],
+  bottom: {
+    trackpants: ['#1a1a20', '#5d6066', '#1e2a4a', '#6b1d2a', '#e9e9ec', '#2d6a45'],
+    jeans: ['#2b4a7a', '#3b5f94', '#1f2f4f', '#6f8fb8', '#2a2a2e'],
+    leggings: ['#1a1a20', '#2a2a3a', '#5d6066', '#6b1d2a', '#2b4a7a'],
+    shorts: ['#c9b48a', '#2b4a7a', '#1a1a20', '#6b7b4a', '#d6d0c4', '#c8302a', '#3b5f94'],
+    skirt: ['#6b1d2a', '#2b4a7a', '#4a5a3a', '#5a3a5a', '#7a6a5a'],
+  },
+  cap: ['#c8302a', '#1a1a20', '#2b5a8c', '#f4cf3a', '#e9e9ec', '#2d6a45', '#f08a24'],
+  flatcap: ['#6b5a48', '#4a4a4a', '#7a6a5a', '#3a4a5a'],
+  shoe: ['#f7f7f5', '#f7f7f5', '#f7f7f5', '#1a1a20', '#c8302a', '#35c2ff', '#ffd23f'],
+};
 export const BIKE_COLORS = [
   { frame: '#2a2c30', accent: '#ff7a1a' },
   { frame: '#2a2c30', accent: '#35c2ff' },
@@ -83,12 +102,18 @@ export const BIKE_COLORS = [
   { frame: '#264d32', accent: '#ffd23f' },
   { frame: '#8a1c22', accent: '#f2f2f2' },
   { frame: '#1d2f55', accent: '#7cff6b' },
+  { frame: '#f2e6d0', accent: '#2b5a8c' },
+  { frame: '#ff8fb8', accent: '#ffffff' },
 ];
 
-export const SHOUTS = [
-  'Wollah!', 'Kijk uit, man!', 'Sahbi, rustig!', 'Haha, mis!', 'Fakka!', 'Wat kijk je nou?',
-  'Opzij, opa!', 'Brrrrrrr!', 'Ewa!', 'Rot op met je ijsje!', 'Ik ben de snelste!', 'Check deze wheelie!',
-  'Tring tring!', 'Mattie, gas erop!', 'Dit is mijn plein!', 'Jij raakt niks!',
-];
-export const THROW_SHOUTS = ['Pak aan!', 'Vang dan!', 'Hier, voor jou!', 'Mes erin!'];
+export const SHOUTS = {
+  any: ['Opzij!', 'Tring tring!', 'Kijk uit, ik heb haast!', 'Fietspad? Nooit van gehoord!', 'Ik ga 40, hoor!', 'Haha, mis!',
+    'Jij raakt niks!', 'Dit is mijn plein!', 'Rot op met je ijsje!', 'Gas erop!', 'Brrrrrr!', 'Ik heb voorrang!', 'Aan de kant!'],
+  teen: ['Bro, rustig!', 'Skrrrt!', 'Dit gaat op TikTok!', 'Mam, kijk!', 'Wacht, ik film dit!', 'Check deze wheelie!', 'Ik heb geen rijbewijs nodig!'],
+  adult: ['Ik moet naar m\'n werk!', 'Ik heb nog een call!', 'Even de kids ophalen!', 'Zo, dat scheelt fietsen!'],
+  senior: ['Aan de kant, jongeman!', 'Vroeger reden we gewoon op de fiets!', 'Mijn kleinzoon heeft hem afgesteld!',
+    'Ik ben op weg naar de bingo!', 'Ik heb voorrang, ik ben 78!', 'Hoe rem je met dit ding?!', 'Waar zit de bel?!'],
+};
+export const PAIN_SHOUTS = ['AUW!', 'HÉ!', 'Mijn fiets!', 'Dat doet pijn, zeg!', 'Au, m\'n heup!'];
+export const THROW_SHOUTS = ['Pak aan!', 'Vang dan!', 'Hier, voor jou!', 'Opgepast!'];
 export const BOSS_SHOUTS = ['VOLUME OMHOOG!', 'BASSSSS!', 'Hoor je dat?!', 'Plein is van mij!'];

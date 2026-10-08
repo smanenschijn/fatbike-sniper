@@ -67,7 +67,7 @@ export class Effects {
     g.position.copy(center);
     this.scene.add(g);
     g.attach(obj);
-    obj.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    obj.traverse((o) => { if (o.isMesh) o.castShadow = false; });
     this.debris.push({ g, vel: vel.clone(), ang: angVel.clone(), radius, life, age: 0, bounce, stars, landed: false, onLand });
     return g;
   }

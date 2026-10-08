@@ -3,8 +3,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const FILES = {
   square: 'models/square.glb',
-  fatbiker: 'models/fatbiker.glb',
-  fatbikerLod: 'models/fatbiker_lod.glb',
+  riders: 'models/riders.glb',
+  ridersLod: 'models/riders_lod.glb',
   ijsje: 'models/ijsje.glb',
   katapult: 'models/weapons/katapult.glb',
   shotgun: 'models/weapons/shotgun.glb',

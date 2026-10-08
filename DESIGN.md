@@ -26,10 +26,12 @@ Je zit op een terras in een Hollandse winkelstraat met een ijsje, tot de fatbike
 Richten is arcade: directe treffers, behalve bij de katapult en de bazooka.
 
 ## Fatbikers
-- Stereotiep en komisch: **zwart** broccolikapsel (krullen bovenop, fade aan de zijkanten), zwart trainingspak met witte strepen (geen logo's), mes op zak, soms een zonnebril
+- Een **gemengd gezelschap**: de fatbike is de rode draad, de rijders zijn divers. 12 typen (zie `VARIANTS` in `blender/build_riders.py`): mannen en vrouwen van tiener tot opa/oma, met broccolikapsel, pet, knot, paardenstaart, staartjes, bob, krullen of kaal; trainingspak, t-shirt, tanktop, polo of vest; korte broek, spijkerbroek, legging of rok; sneakers, sokken in sandalen of oma-schoenen; oma heeft een mand met stokbrood
+- Huidskleur, haarkleur en kledingkleuren worden per fatbiker los van elkaar gekozen (paletten in `src/config.js`), zodat geen enkel uiterlijk aan één groep vastzit
+- Kreten zijn neutraal en per leeftijd (tieners, volwassenen, senioren), zonder straattaal
 - Gedrag: rondjes racen over het plein langs routes, soms op je terras afrijden om een mes te gooien, toeteren en schelden (tekstwolkjes en audio)
 - Missen ze hun kans, of mis jij, dan gooien ze een mes. Een mes kun je uit de lucht schieten (trickshot)
-- Kleurvariatie: in-game per fatbiker een willekeurige kleur trainingspak (zwart, grijs, navy, wit, bordeaux) en fiets (materialen `TracksuitBlack` / `BikeFrame` / `BikeAccent` worden bij het spawnen gewisseld)
+- Fietskleuren variëren ook (frame + accent)
 - Maximaal ~15–20 tegelijk; hun aantal neemt toe naarmate de minuut verstrijkt
 - Specials:
   - **Duo op één fiets**: de achterste gooit messen; één schot kan beiden raken
