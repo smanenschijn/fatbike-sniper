@@ -10,3 +10,5 @@ python3 scripts/gen_sfx.py     # render the synth sound effects to WAV
 ```
 
 Automated screenshot / smoke test: `Godot --path godot -- --autoshot=/tmp/shot.png [--autoplay] [--wait=8]`
+
+Op je iPhone zetten (gratis Apple ID, verloopt na 7 dagen): `scripts/ios-deploy.sh`
