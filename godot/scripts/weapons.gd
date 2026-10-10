@@ -9,7 +9,7 @@ signal empty_mag
 
 var DEFS = [
 	{"key": "katapult", "name": "KATAPULT", "mag": -1, "reserve": -1, "fire_delay": 0.3, "reload": 0.0, "kind": "projectile",
-		"projectile": {"speed": 42.0, "gravity": 6.0, "radius": 0.12, "damage": 1.0}, "muzzle": Config.B(0, 0, 0.36), "kick": 0.35,
+		"projectile": {"speed": 65.0, "gravity": 6.0, "radius": 0.12, "damage": 1.0}, "muzzle": Config.B(0, 0, 0.36), "kick": 0.35,
 		"offset": Vector3(0, -0.11, 0.13)},
 	{"key": "shotgun", "name": "SHOTGUN", "mag": 6, "reserve": -1, "fire_delay": 0.85, "reload": 1.7, "kind": "hitscan",
 		"pellets": 10, "spread": 0.075, "range": 32.0, "damage": 1.0, "max_per_rider": 2.0, "muzzle": Config.B(0.8, 0, 0.06), "kick": 1.0},

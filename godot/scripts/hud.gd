@@ -483,7 +483,7 @@ func _build_title() -> void:
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 16)
 	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
-		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-4 of scrollwiel: wapen wisselen\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time"
+		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-4 of scrollwiel: wapen wisselen\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
 	cards.add_child(_card("BESTURING", controls))
 	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)"))
 	var hs = _card("HALL OF FAME", "")

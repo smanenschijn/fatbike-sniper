@@ -240,6 +240,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		inp.keys_down[e.keycode] = true
 		if e.keycode == KEY_M:
 			Sfx.toggle_mute()
+		if e.keycode == KEY_F11 or (e.keycode == KEY_F and e.meta_pressed):
+			var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
 		if e.keycode == KEY_ESCAPE and mode == "playing":
 			pause()
 	elif e is InputEventKey and not e.pressed:
@@ -285,7 +288,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and mode == "playing":
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and mode == "playing" and _auto.is_empty():
 		pause()
 
 
