@@ -133,6 +133,9 @@ func show_title() -> void:
 	hud.sync_options(settings)
 	hud.title_scores(_load_scores(), _mode_label())
 	game.state = "idle"
+	game.boss.reset()
+	world.fold_parasol(false)
+	Sfx.restart_music(false)
 	Sfx.set_intensity("title")
 
 
@@ -350,7 +353,7 @@ func _process(delta: float) -> void:
 func _screen_threats() -> Array:
 	var out = []
 	var vs := get_viewport().get_visible_rect().size
-	for th in riders.threats():
+	for th in riders.threats() + game.boss.threats():
 		var behind := camera.is_position_behind(th.pos)
 		var sp := camera.unproject_position(th.pos)
 		if behind:
@@ -394,12 +397,17 @@ func _parse_auto_args() -> void:
 			_auto.knife = true
 		elif a == "--bullet":
 			_auto.bullet = true
+		elif a == "--boss":
+			_auto.boss = true
+		elif a == "--bossfight":
+			_auto.boss = true
+			_auto.skip_intro = true
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
 	if _auto.has("shot"):
 		_auto.t = 0.0
 		_auto.wait = _auto.get("wait", 6.0)
-		if _auto.get("play", false):
+		if _auto.get("play", false) or _auto.get("boss", false):
 			start_game()
 
 
@@ -407,7 +415,24 @@ func _auto_step(dt: float) -> void:
 	if not _auto.has("shot"):
 		return
 	_auto.t += dt
-	if _auto.get("play", false) and mode == "playing":
+	if _auto.get("boss", false) and game.state == "playing" and not _auto.has("boss_started"):
+		_auto.boss_started = true
+		game.time = 0.05
+	if _auto.get("skip_intro", false) and game.state == "boss_intro" and game.boss.state == "intro" and game.boss._intro.get("stage", "") != "card":
+		game.boss.skip_intro()
+	if _auto.get("play", false) and mode == "playing" and game.state == "boss":
+		# aim at a random boss part and fire now and then
+		var part = ["LegL", "LegR", "Torso", "ArmL", "ArmR", "Head"].filter(func(k): return game.boss.parts[k].alive and (k != "Head" or game.boss.head_open))
+		if not part.is_empty():
+			if not _auto.has("part") or not game.boss.parts[_auto.part].alive or fmod(_auto.t, 4.0) < dt:
+				_auto.part = part.pick_random()
+			var d = (game.boss._part_center(_auto.part) - world.eye).normalized()
+			inp.yaw = atan2(-d.x, -d.z)
+			inp.pitch = asin(d.y)
+			if fmod(_auto.t, 0.5) < dt:
+				inp.fire_pressed = true
+				inp.fire_down = true
+	elif _auto.get("play", false) and mode == "playing" and game.state == "playing":
 		# aim at the nearest rider and fire every now and then
 		var best = null
 		for r in riders.list:

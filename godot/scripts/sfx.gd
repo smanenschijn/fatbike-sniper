@@ -2,7 +2,8 @@ extends Node
 ## Autoload "Sfx": sound effects (pre-rendered synth WAVs), the soundtrack, and the bullet-time "slowed" mix.
 
 const NAMES := ["katapult", "shotgun", "sniper", "bazooka", "explosion", "hit", "hit_head", "knock_off", "bell", "whoosh",
-	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready", "warn"]
+	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready", "warn",
+	"roar", "stomp", "rumble", "transform", "clank_heavy", "rocket", "rev"]
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -11,6 +12,8 @@ var music: AudioStreamPlayer
 var muted := false
 var _sfx_bus := 0
 var _music_bus := 0
+var _music_pitch := 1.0
+var _music_tween: Tween
 
 
 func _ready() -> void:
@@ -87,6 +90,13 @@ func bullet_in() -> void: play("bullet_in")
 func bullet_out() -> void: play("bullet_out")
 func ready_sound() -> void: play("ready")
 func warn() -> void: play("warn", 2.0)
+func roar() -> void: play("roar", 3.0)
+func stomp(dist := 20.0) -> void: play("stomp", clampf(4.0 - dist / 6.0, -8.0, 3.0), randf_range(0.9, 1.05))
+func rumble() -> void: play("rumble", 2.0)
+func transform() -> void: play("transform", -2.0)
+func clank_heavy() -> void: play("clank_heavy", 0.0, randf_range(0.85, 1.1))
+func rocket() -> void: play("rocket", -1.0)
+func rev() -> void: play("rev", -4.0, randf_range(0.85, 1.15))
 
 
 # ------------------------------------------------------------ music
@@ -105,12 +115,32 @@ func set_intensity(level: String) -> void:
 
 ## Bullet time: slowed + reverb on the music, muffled effects.
 func set_slow(on: bool) -> void:
-	music.pitch_scale = 0.62 if on else 1.0
+	music.pitch_scale = 0.62 if on else _music_pitch
 	AudioServer.set_bus_effect_enabled(_music_bus, 1, on)
 	AudioServer.set_bus_effect_enabled(_music_bus, 0, on)
 	(AudioServer.get_bus_effect(_music_bus, 0) as AudioEffectLowPassFilter).cutoff_hz = 1100.0
 	AudioServer.set_bus_effect_enabled(_sfx_bus, 0, on)
 	(AudioServer.get_bus_effect(_sfx_bus, 0) as AudioEffectLowPassFilter).cutoff_hz = 1800.0
+
+
+## Fade the soundtrack out (and stop it), e.g. before the boss arrives.
+func fade_music_out(secs := 1.5) -> void:
+	if _music_tween:
+		_music_tween.kill()
+	_music_tween = create_tween()
+	_music_tween.tween_property(music, "volume_db", -40.0, secs)
+	_music_tween.tween_callback(music.stop)
+
+
+## Restart the soundtrack. The boss fight plays it a little lower and slower.
+func restart_music(boss := false) -> void:
+	if _music_tween:
+		_music_tween.kill()
+	_music_pitch = 0.9 if boss else 1.0
+	music.pitch_scale = _music_pitch
+	music.volume_db = 0.0
+	if music.stream and not music.playing:
+		music.play()
 
 
 func toggle_mute() -> bool:

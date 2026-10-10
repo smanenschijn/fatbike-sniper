@@ -59,6 +59,12 @@ var _name_row: HBoxContainer
 var _name_edit: LineEdit
 var _hs_end: VBoxContainer
 var touch := false
+var _play_widgets: Array = []   # hidden during cut-scenes
+var _boss_box: VBoxContainer
+var _boss_bar: BossBar
+var _name_card: VBoxContainer
+var _skip: Label
+var _cinematic := false
 
 
 func _ready() -> void:
@@ -220,6 +226,7 @@ func _build_game_ui() -> void:
 	_score = _label("0", 60, Color.WHITE, 10)
 	score_box.add_child(_score)
 	game_ui.add_child(score_box)
+	_play_widgets.append(score_box)
 
 	_timer = _label("60", 70, Color.WHITE, 12)
 	_timer.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -234,6 +241,7 @@ func _build_game_ui() -> void:
 	_hearts.position = Vector2(-24, 20)
 	_hearts.add_theme_constant_override("separation", 8)
 	game_ui.add_child(_hearts)
+	_play_widgets.append(_hearts)
 
 	_threats = ThreatOverlay.new()
 	_threats.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -243,6 +251,7 @@ func _build_game_ui() -> void:
 	_crosshair = Crosshair.new()
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
 	game_ui.add_child(_crosshair)
+	_build_boss_ui()
 	_hit = Crosshair.new()
 	_hit.mode = "hit"
 	_hit.set_anchors_preset(Control.PRESET_CENTER)
@@ -283,6 +292,7 @@ func _build_game_ui() -> void:
 	_weapons.add_theme_constant_override("separation", 8)
 	_weapons.alignment = BoxContainer.ALIGNMENT_END
 	game_ui.add_child(_weapons)
+	_play_widgets.append(_weapons)
 
 	_meter_box = _panel()
 	_meter_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -300,6 +310,7 @@ func _build_game_ui() -> void:
 	mv.add_child(mbg)
 	_meter_box.add_child(mv)
 	game_ui.add_child(_meter_box)
+	_play_widgets.append(_meter_box)
 	if touch:
 		_meter_box.mouse_filter = Control.MOUSE_FILTER_STOP
 		_meter_box.gui_input.connect(func(e): if e is InputEventScreenTouch and e.pressed: touch_key.emit(KEY_B))
@@ -314,21 +325,109 @@ func _build_touch_buttons() -> void:
 	fire.button_down.connect(func(): touch_fire.emit(true))
 	fire.button_up.connect(func(): touch_fire.emit(false))
 	game_ui.add_child(fire)
+	_play_widgets.append(fire)
 	var reload = _button("R", 26, true)
 	reload.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	reload.position = Vector2(-110, -360)
 	reload.button_down.connect(func(): touch_key.emit(KEY_R))
 	game_ui.add_child(reload)
+	_play_widgets.append(reload)
 	_zoom_btn = _button("ZOOM", 24, true)
 	_zoom_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_zoom_btn.position = Vector2(-330, -200)
 	_zoom_btn.button_down.connect(func(): touch_zoom_toggle.emit())
 	game_ui.add_child(_zoom_btn)
+	_play_widgets.append(_zoom_btn)
 	var pause = _button("II", 22, true)
 	pause.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	pause.position = Vector2(110, 14)
 	pause.button_down.connect(func(): touch_key.emit(KEY_ESCAPE))
 	game_ui.add_child(pause)
+	_play_widgets.append(pause)
+
+
+# ------------------------------------------------------------ end boss
+
+func _build_boss_ui() -> void:
+	_boss_box = VBoxContainer.new()
+	_boss_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_boss_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_boss_box.position = Vector2(-300, 10)
+	_boss_box.custom_minimum_size = Vector2(600, 0)
+	_boss_box.add_theme_constant_override("separation", 0)
+	var nm = _label("FATBIKETRON", 40, RED, 10)
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_boss_box.add_child(nm)
+	_boss_bar = BossBar.new()
+	_boss_bar.font = font_ui
+	_boss_bar.custom_minimum_size = Vector2(600, 46)
+	_boss_box.add_child(_boss_bar)
+	_boss_box.visible = false
+	game_ui.add_child(_boss_box)
+
+	_name_card = VBoxContainer.new()
+	_name_card.set_anchors_preset(Control.PRESET_CENTER)
+	_name_card.anchor_top = 0.7
+	_name_card.anchor_bottom = 0.7
+	_name_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_name_card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_name_card.alignment = BoxContainer.ALIGNMENT_CENTER
+	_name_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t = _label("", 150, RED, 22)
+	var sub = _label("", 34, Color.WHITE, 8, true)
+	for lb in [t, sub]:
+		lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_name_card.add_child(lb)
+	_name_card.modulate.a = 0.0
+	game_ui.add_child(_name_card)
+
+	_skip = _label("tik om over te slaan" if touch else "klik om over te slaan", 22, Color(1, 1, 1, 0.75), 6, true)
+	_skip.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_skip.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_skip.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_skip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_skip.position.y = -18
+	_skip.visible = false
+	game_ui.add_child(_skip)
+
+
+## Cut-scene mode: black bars, gameplay widgets hidden.
+func set_cinematic(on: bool) -> void:
+	if on == _cinematic:
+		return
+	_cinematic = on
+	for w in _play_widgets:
+		w.visible = not on
+	_crosshair.visible = not on
+	_timer.visible = not on and not _boss_box.visible
+	_skip.visible = on
+	var tw = create_tween().set_parallel()
+	for bar in _letterbox:
+		tw.tween_property(bar, "custom_minimum_size:y", root.size.y * 0.11 if on else 0.0, 0.6)
+
+
+func show_boss(on: bool) -> void:
+	_boss_box.visible = on
+	_timer.visible = not on and not _cinematic
+
+
+func set_boss(parts: Array) -> void:
+	_boss_bar.items = parts
+	_boss_bar.queue_redraw()
+
+
+func boss_card(title: String, sub: String) -> void:
+	(_name_card.get_child(0) as Label).text = title
+	(_name_card.get_child(1) as Label).text = sub
+	_name_card.pivot_offset = _name_card.size / 2.0
+	_name_card.scale = Vector2.ONE * 2.2
+	_skip.visible = false
+	var tw = create_tween()
+	tw.set_parallel()
+	tw.tween_property(_name_card, "modulate:a", 1.0, 0.25)
+	tw.tween_property(_name_card, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_interval(2.0)
+	tw.chain().tween_property(_name_card, "modulate:a", 0.0, 0.5)
 
 
 func show_game(on: bool) -> void:
@@ -390,14 +489,14 @@ func set_weapons(st: Dictionary) -> void:
 				p.gui_input.connect(func(e): if e is InputEventScreenTouch and e.pressed: touch_key.emit(KEY_1 + idx))
 			_weapons.add_child(p)
 	_crosshair.mode = st.key
-	_crosshair.visible = not st.zoom
+	_crosshair.visible = not st.zoom and not _cinematic
 	_crosshair.queue_redraw()
 	_scope.visible = st.zoom
 	_reload.visible = st.reload >= 0
 	if st.reload >= 0:
 		_reload_bar.size.x = 120 * st.reload
 	if _zoom_btn:
-		_zoom_btn.visible = st.key == "sniper"
+		_zoom_btn.visible = st.key == "sniper" and not _cinematic
 
 
 ## Threat markers: [{screen: Vector2, onscreen: bool, kind, urgency}]
@@ -499,7 +598,7 @@ func _build_title() -> void:
 	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
 		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-4 of scrollwiel: wapen wisselen\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
 	cards.add_child(_card("BESTURING", controls))
-	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)"))
+	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)\nFATBIKETRON: fiets eraf +500, winst +5000"))
 	var hs = _card("HALL OF FAME", "")
 	_hs_title = VBoxContainer.new()
 	_hs_mode = _label("", 14, Color("c8bfae"), 0, true)
@@ -625,7 +724,8 @@ func show_end(reason: String, rank: String, mode_label: String, score: int, stat
 		c.queue_free()
 	var acc = roundi(100.0 * stats.hits / stats.shots) if stats.shots > 0 else 0
 	for pair in [["Van de fiets", stats.kills], ["Headshots", stats.headshots], ["Nauwkeurigheid", "%d%%" % acc],
-			["Messen geraakt", stats.knives], ["Beste combo", "%dx" % stats.best_multi], ["Speaker-bazen", stats.bosses]]:
+			["Messen geraakt", stats.knives], ["Beste combo", "%dx" % stats.best_multi],
+			["Fatbiketron", "VERSLAGEN!" if stats.get("boss_win", false) else "%d/6 delen" % stats.get("boss_parts", 0)]]:
 		var v = VBoxContainer.new()
 		v.add_child(_label(pair[0], 15, Color("fff8ea"), 0, true))
 		v.add_child(_label(str(pair[1]), 28, YELLOW, 4))
@@ -672,6 +772,38 @@ class HeartIcon extends Control:
 		draw_colored_polygon(pts, col)
 		pts.append(pts[0])
 		draw_polyline(pts, Color("121216"), 2.5, true)
+
+
+class BossBar extends Control:
+	var items: Array = []   # [{name, frac, color, alive, locked}]
+	var font: Font
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		if items.is_empty():
+			return
+		var ink = Color("121216")
+		var gap = 6.0
+		var w = (size.x - gap * (items.size() - 1)) / items.size()
+		for i in items.size():
+			var it: Dictionary = items[i]
+			var r = Rect2(i * (w + gap), 0, w, 18)
+			draw_rect(r.grow(3), ink)
+			draw_rect(r, Color(0.2, 0.2, 0.22))
+			if it.locked:
+				for k in 6:  # hatched: not hittable yet
+					var x = r.position.x + k * w / 6.0
+					draw_line(Vector2(x, r.end.y), Vector2(x + 10, r.position.y), Color(0.45, 0.45, 0.5), 3)
+			elif it.alive:
+				draw_rect(Rect2(r.position, Vector2(w * it.frac, r.size.y)), it.color)
+			var col = Color(1, 1, 1, 0.9) if it.alive else Color(1, 1, 1, 0.35)
+			if font:
+				draw_string(font, Vector2(r.position.x, 38), it.name, HORIZONTAL_ALIGNMENT_CENTER, w, 14, col)
+			if not it.alive:
+				draw_line(r.position + Vector2(4, 4), r.end - Vector2(4, 4), Color("e63946"), 3)
+				draw_line(Vector2(r.position.x + 4, r.end.y - 4), Vector2(r.end.x - 4, r.position.y + 4), Color("e63946"), 3)
 
 
 class Crosshair extends Control:

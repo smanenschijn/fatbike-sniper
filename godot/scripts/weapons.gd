@@ -84,6 +84,12 @@ func reset(rockets := 5) -> void:
 	select(0, true)
 
 
+func add_rockets(count: int) -> void:
+	for w in list:
+		if w.key == "bazooka":
+			w.reserve_left += count
+
+
 func select(i: int, instant := false) -> void:
 	if i == index and not instant:
 		return

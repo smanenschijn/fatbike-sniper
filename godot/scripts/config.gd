@@ -17,14 +17,15 @@ const PITCH_MIN := deg_to_rad(-40.0)
 const PITCH_MAX := deg_to_rad(55.0)
 
 const LEVELS := {
-	"easy": {"label": "Makkelijk", "windup": 0.95, "spawn": 1.35, "alive": 0.7, "attack": 0.5, "speed": 0.88, "accuracy": 0.35, "retaliate": 0.4, "hearts": 5, "bt_fill": 1.35, "score": 0.8},
-	"normal": {"label": "Normaal", "windup": 0.75, "spawn": 1.0, "alive": 1.0, "attack": 1.0, "speed": 1.0, "accuracy": 0.6, "retaliate": 0.7, "hearts": 3, "bt_fill": 1.0, "score": 1.0},
-	"hard": {"label": "Moeilijk", "windup": 0.55, "spawn": 0.72, "alive": 1.3, "attack": 1.5, "speed": 1.15, "accuracy": 0.8, "retaliate": 0.9, "hearts": 3, "bt_fill": 0.8, "score": 1.3},
+	"easy": {"label": "Makkelijk", "windup": 0.95, "spawn": 1.35, "alive": 0.7, "attack": 0.5, "speed": 0.88, "accuracy": 0.35, "retaliate": 0.4, "hearts": 5, "bt_fill": 1.35, "score": 0.8, "boss_hp": 0.7},
+	"normal": {"label": "Normaal", "windup": 0.75, "spawn": 1.0, "alive": 1.0, "attack": 1.0, "speed": 1.0, "accuracy": 0.6, "retaliate": 0.7, "hearts": 3, "bt_fill": 1.0, "score": 1.0, "boss_hp": 1.0},
+	"hard": {"label": "Moeilijk", "windup": 0.55, "spawn": 0.72, "alive": 1.3, "attack": 1.5, "speed": 1.15, "accuracy": 0.8, "retaliate": 0.9, "hearts": 3, "bt_fill": 0.8, "score": 1.3, "boss_hp": 1.35},
 }
 
 const BULLET_TIME := {"duration": 4.5, "scale": 0.2, "fill_kill": 0.2, "fill_head": 0.12, "fill_knife": 0.2, "bonus": 1.5}
 
-const SCORE := {"kill": 100, "headshot": 50, "multi": 100, "knife": 150, "boss": 500, "wheelie_mul": 2}
+const SCORE := {"kill": 100, "headshot": 50, "multi": 100, "knife": 150, "boss": 500, "wheelie_mul": 2,
+	"rocket": 200, "boss_hit": 10, "boss_part": 500, "boss_head": 2000, "boss_win": 5000, "boss_heart": 1000}
 
 const RING_RADIUS := 9.5
 static var FOUNTAIN := B(0, 3)

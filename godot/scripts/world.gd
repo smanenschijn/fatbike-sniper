@@ -7,6 +7,7 @@ const SUN_DIR := Vector3(-0.8, 0.5, -0.33)
 var eye = Vector3(0, 1.2, 11.55)
 var env: Environment
 var ijsje: Node3D
+var parasols: Array = []
 var _ijs_init := {}
 var ijsje_fall := {}
 var _ijs_bits: Array = []
@@ -19,6 +20,9 @@ func _ready() -> void:
 	var eye_node = square.find_child("PlayerEye", true, false)
 	if eye_node:
 		eye = (eye_node as Node3D).global_position
+	for pn in square.find_children("*Parasol*", "Node3D", true, false):
+		if (pn as Node3D).global_position.distance_to(Vector3(eye.x, 0, eye.z)) < 6.0:
+			parasols.append(pn)
 	var chair = square.find_child("Player_Chair", true, false)
 	if chair:
 		chair.queue_free()
@@ -88,6 +92,15 @@ func raycast(origin: Vector3, dir: Vector3, far: float) -> Dictionary:
 	if hit.is_empty():
 		return {}
 	return {"position": hit.position, "normal": hit.normal, "distance": origin.distance_to(hit.position)}
+
+
+## The waiter folds the terrace parasols so you can look up at the boss (and opens them again later).
+func fold_parasol(folded: bool) -> void:
+	var target = Vector3(0.1, 1.0, 0.1) if folded else Vector3.ONE
+	for p in parasols:
+		if (p as Node3D).scale.is_equal_approx(target):
+			continue
+		create_tween().tween_property(p, "scale", target, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN if folded else Tween.EASE_OUT)
 
 
 func knock_over_ijsje(from_dir: Vector3) -> void:

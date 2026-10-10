@@ -13,7 +13,7 @@ var effects: Effects
 var hud: Hud
 var camera: Camera3D
 
-var state = "idle"  # idle | countdown | playing | ended
+var state = "idle"  # idle | countdown | playing | boss_intro | boss | boss_won | ended
 var round_time := 60.0
 var level: Dictionary = Config.LEVELS.normal
 var level_key := "normal"
@@ -28,6 +28,11 @@ var next_refill := 60.0
 var bt := {"meter": 0.0, "active": false, "t": 0.0, "scale": 1.0}
 var projectiles: Array = []
 var tracers: Array = []
+var boss: Fatbiketron
+var _round_id := 0
+var _tip_t := 0.0
+
+const NO_SPAWN := {"spawn_interval": 99.0, "max_alive": 0, "attack_chance": 0.0, "speed_mul": 1.0}
 
 
 func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D) -> void:
@@ -42,6 +47,10 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	weapons.eject_shell.connect(_eject_shell)
 	weapons.empty_mag.connect(func(): hud.message("LEEG!", 0.5))
 	riders.player_hit.connect(on_player_hit)
+	boss = Fatbiketron.new()
+	world.add_child(boss)
+	boss.setup(self, riders, effects, world.eye)
+	boss.player_hit.connect(on_player_hit)
 
 
 func reset(p_round_time: float, p_level: String) -> void:
@@ -50,6 +59,13 @@ func reset(p_round_time: float, p_level: String) -> void:
 	level = Config.LEVELS[p_level]
 	max_hearts = level.hearts
 	riders.settings = {"accuracy": level.accuracy, "windup": level.windup}
+	boss.settings = {"accuracy": level.accuracy, "windup": level.windup, "hp": level.boss_hp, "speed": level.speed}
+	boss.reset()
+	world.fold_parasol(false)
+	_round_id += 1
+	hud.show_boss(false)
+	hud.set_cinematic(false)
+	Sfx.restart_music(false)
 	world.reset_ijsje()
 	next_refill = 60.0
 	riders.clear()
@@ -64,7 +80,8 @@ func reset(p_round_time: float, p_level: String) -> void:
 	score = 0
 	time = round_time
 	hearts = max_hearts
-	stats = {"shots": 0, "hits": 0, "kills": 0, "headshots": 0, "knives": 0, "best_multi": 1, "bosses": 0}
+	stats = {"shots": 0, "hits": 0, "kills": 0, "headshots": 0, "knives": 0, "best_multi": 1, "bosses": 0,
+		"boss_parts": 0, "boss_win": false}
 	countdown = 3.6
 	last_count = 99
 	state = "countdown"
@@ -127,6 +144,7 @@ func _end_bullet_time(silent := false) -> void:
 func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 	stats.shots += 1
 	var per_rider = {}
+	var boss_hits = {}
 	var any_hit = false
 	var first_end = null
 	for dir in dirs:
@@ -137,6 +155,19 @@ func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 		if not kh.is_empty() and (rh.is_empty() or kh[0].t < rh[0].t):
 			_knife_shot(kh[0].knife)
 			any_hit = true
+			continue
+		var ph = boss.raycast_projectiles(origin, dir, limit)
+		var bh = boss.raycast(origin, dir, limit)
+		if not ph.is_empty() and (bh.is_empty() or ph[0].t < bh.t):
+			_boss_proj_shot(ph[0].proj)
+			any_hit = true
+			continue
+		if not bh.is_empty() and (rh.is_empty() or bh.t < rh[0].t):
+			var be: Dictionary = boss_hits.get(bh.part, {"dmg": 0.0, "point": bh.point})
+			be.dmg += w.damage
+			boss_hits[bh.part] = be
+			if first_end == null:
+				first_end = bh.point
 			continue
 		var hits = []
 		if w.has("pierce"):
@@ -168,6 +199,11 @@ func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 		effects.muzzle_flash(muzzle, 0.7 if w.key == "shotgun" else 0.55)
 		if w.key == "sniper" and first_end != null:
 			_tracer(muzzle, first_end)
+	for part in boss_hits:
+		var be: Dictionary = boss_hits[part]
+		var dmg: float = minf(be.dmg, 4.0) * (1.5 if part == "Head" and w.key == "sniper" else 1.0)
+		if _boss_hit(part, dmg, be.point):
+			any_hit = true
 	var kills = []
 	for id in per_rider:
 		var e: Dictionary = per_rider[id]
@@ -188,6 +224,9 @@ func fire_projectile(w: Dictionary, muzzle: Vector3, origin: Vector3, fwd: Vecto
 	var wh = world.raycast(origin, fwd, 250.0)
 	var rh = riders.raycast(origin, fwd, wh.distance if not wh.is_empty() else 250.0)
 	var aim_dist: float = rh[0].t if not rh.is_empty() else (wh.distance if not wh.is_empty() else 120.0)
+	var bh0 = boss.raycast(origin, fwd, aim_dist)
+	if not bh0.is_empty():
+		aim_dist = bh0.t
 	var aim = origin + fwd * aim_dist
 	var p: Dictionary = w.projectile
 	if not rh.is_empty() and rh[0].rider.alive:  # arcade lead
@@ -248,11 +287,26 @@ func _update_projectiles(dt: float) -> void:
 		var wh = world.raycast(prev, dir, length + d.radius)
 		var rh = riders.raycast(prev, dir, wh.distance if not wh.is_empty() else length + d.radius, 0.2)
 		var kh = riders.raycast_knives(prev, dir, length + 0.2)
+		var ph = boss.raycast_projectiles(prev, dir, length + 0.4)
+		var bh = boss.raycast(prev, dir, wh.distance if not wh.is_empty() else length + d.radius)
 		var done = false
 		if not kh.is_empty():
 			_knife_shot(kh[0].knife)
 			p.hit_any = true
-		if not rh.is_empty():
+		if not ph.is_empty():
+			var at: Vector3 = (ph[0].proj.node as Node3D).global_position
+			_boss_proj_shot(ph[0].proj)
+			p.hit_any = true
+			if d.has("explode"):
+				_explode(at, p)
+			done = true
+		elif not bh.is_empty() and (rh.is_empty() or bh.t < rh[0].t):
+			if d.has("explode"):
+				_explode(bh.point, p)
+			elif _boss_hit(bh.part, d.damage, bh.point):
+				p.hit_any = true
+			done = true
+		elif not rh.is_empty():
 			var h: Dictionary = rh[0]
 			if d.has("explode"):
 				_explode(h.point, p)
@@ -295,10 +349,16 @@ func _explode(point: Vector3, p: Dictionary) -> void:
 	for k in riders.knives.duplicate():
 		if (k.mesh as Node3D).global_position.distance_to(point) < R:
 			_knife_shot(k)
+	for bp in boss.projectiles.duplicate():
+		if (bp.node as Node3D).global_position.distance_to(point) < R:
+			_boss_proj_shot(bp)
+	var boss_hit = false
+	for part in boss.parts_in_radius(point, R):
+		boss_hit = _boss_hit(part, 7.0, point) or boss_hit
 	if not kills.is_empty():
 		hud.hit(false)
 		_score_kills(kills)
-	_after_shot(not kills.is_empty())
+	_after_shot(not kills.is_empty() or boss_hit)
 
 
 func _after_shot(hit: bool) -> void:
@@ -317,6 +377,116 @@ func _knife_shot(k: Dictionary) -> void:
 	_add_score(kp, pos, "MES GERAAKT! +%d" % kp, "bonus")
 	Sfx.clank()
 	hud.hit(false)
+
+
+# ------------------------------------------------------------ boss
+
+func _boss_proj_shot(p: Dictionary) -> void:
+	var rocket: bool = p.kind == "rocket"
+	var pos = boss.destroy_projectile(p)
+	stats.knives += 1
+	fill_meter(Config.BULLET_TIME.fill_knife)
+	var kp = pts(Config.SCORE.rocket if rocket else Config.SCORE.knife)
+	_add_score(kp, pos, ("RAKET NEERGESCHOTEN! +%d" if rocket else "BAND GERAAKT! +%d") % kp, "bonus")
+	hud.hit(false)
+
+
+## Damage one boss part; returns true when it counted as a hit.
+func _boss_hit(part: String, dmg: float, point: Vector3) -> bool:
+	var res: Dictionary = boss.damage(part, dmg, point)
+	match res.result:
+		"hit":
+			hud.hit(part == "Head")
+			Sfx.hit(part == "Head")
+			_add_score(pts(Config.SCORE.boss_hit * dmg), point)
+			fill_meter(0.02 * dmg)
+			return true
+		"armor":
+			hud.hit(false)
+			Sfx.clank()
+			return false
+		"broken", "dead":
+			var head = res.result == "dead"
+			var p = pts((Config.SCORE.boss_head if head else Config.SCORE.boss_part) * (Config.BULLET_TIME.bonus if bt.active else 1.0))
+			stats.boss_parts += 1
+			hud.hit(true)
+			Sfx.hit(true)
+			Sfx.cheer()
+			fill_meter(0.35)
+			_add_score(p, point, "+%d" % p, "bonus")
+			if not head:
+				effects.popup_screen("%s ERAF!" % Fatbiketron.PART_NAMES[part], "big", 0.5, 0.3, 1.6)
+				if boss.bikes_left() == 0:
+					effects.popup_screen("HET HOOFD IS KWETSBAAR!", "bonus", 0.5, 0.42, 2.2)
+			return true
+	return false
+
+
+func start_boss() -> void:
+	state = "boss_intro"
+	time = 0.0
+	hud.set_time(0)
+	_end_bullet_time(true)
+	bt.scale = 1.0
+	riders.flee()
+	hud.message("TIJD OP!", 1.3)
+	Sfx.end_round()
+	Sfx.fade_music_out(1.6)
+	hud.set_cinematic(true)
+	weapons.root.visible = false
+	world.fold_parasol(true)
+	boss.start_intro()
+
+
+func _step_boss_intro(dt: float, inp) -> void:
+	riders.step(dt, NO_SPAWN, elapsed())
+	boss.step(dt)
+	var d: Vector3 = (boss.cam_focus - camera.global_position).normalized()
+	inp.yaw = lerp_angle(inp.yaw, atan2(-d.x, -d.z), minf(1.0, dt * 2.2))
+	inp.pitch = lerpf(inp.pitch, asin(d.y), minf(1.0, dt * 2.2))
+	inp.zoom_toggle = false
+	weapons.root.visible = false
+	if inp.fire_pressed or inp.keys_pressed.has(KEY_SPACE) or inp.keys_pressed.has(KEY_ENTER):
+		boss.skip_intro()
+	hud.set_score(score)
+
+
+## Called by the boss when its name card appears.
+func boss_card() -> void:
+	hud.boss_card("FATBIKETRON", "5 fatbikes · 1 doel: jouw ijsje")
+
+
+## Called by the boss when the intro is over.
+func boss_fight_start() -> void:
+	state = "boss"
+	hud.set_cinematic(false)
+	hud.show_boss(true)
+	Sfx.restart_music(true)
+	Sfx.go()
+	var healed = hearts < max_hearts
+	if healed:
+		hearts += 1
+		hud.set_hearts(hearts, max_hearts)
+	world.reset_ijsje()
+	weapons.add_rockets(3)
+	hud.message("VERSLA HEM!", 1.2)
+	effects.popup_screen("OBER: VERS IJSJE%s + 3 RAKETTEN!" % (" +1 ♥" if healed else ""), "bonus", 0.5, 0.72, 2.6)
+
+
+## Called by the boss when it has fallen apart.
+func boss_defeated() -> void:
+	if state != "boss":
+		return
+	state = "boss_won"
+	stats.boss_win = true
+	var bonus = pts(Config.SCORE.boss_win + Config.SCORE.boss_heart * hearts)
+	score += bonus
+	hud.show_boss(false)
+	effects.popup_screen("FATBIKETRON VERSLAGEN!", "big", 0.5, 0.3, 2.6)
+	effects.popup_screen("BONUS +%d" % bonus, "bonus", 0.5, 0.45, 2.6)
+	Sfx.cheer()
+	var id = _round_id
+	get_tree().create_timer(2.8).timeout.connect(func(): if id == _round_id and state == "boss_won": end_round("PLEIN BEVRIJD!"))
 
 
 func _eject_shell(shell: Node3D) -> void:
@@ -385,8 +555,8 @@ func _score_kills(kills: Array) -> void:
 		Sfx.cheer()
 
 
-func on_player_hit(knife_vel: Vector3) -> void:
-	if state != "playing":
+func on_player_hit(knife_vel: Vector3, reason := "NEERGESTOKEN!") -> void:
+	if state != "playing" and state != "boss":
 		return
 	hearts -= 1
 	hud.set_hearts(hearts, max_hearts)
@@ -398,7 +568,7 @@ func on_player_hit(knife_vel: Vector3) -> void:
 	if fell:
 		world.knock_over_ijsje(Vector3(knife_vel.x, 0, knife_vel.z).normalized())
 	if hearts <= 0:
-		end_round("NEERGESTOKEN!")
+		end_round(reason)
 
 
 # ------------------------------------------------------------ loop
@@ -426,8 +596,12 @@ func step(dt: float, inp) -> void:
 			state = "playing"
 		weapons.step(dt, inp)
 		return
-	if state != "playing":
+	if state == "boss_intro":
+		_step_boss_intro(dt, inp)
 		return
+	if state != "playing" and state != "boss" and state != "boss_won":
+		return
+	var fighting: bool = state != "playing"
 	if inp.keys_pressed.has(KEY_B) or inp.keys_pressed.has(KEY_SPACE):
 		start_bullet_time()
 	if bt.active:
@@ -441,36 +615,46 @@ func step(dt: float, inp) -> void:
 	var gdt: float = dt * bt.scale
 	hud.set_meter(bt.t / Config.BULLET_TIME.duration if bt.active else bt.meter, bt.active)
 
-	var prev_sec = ceili(time)
-	time -= gdt
-	if ceili(time) != prev_sec and time <= 5 and time > 0:
-		Sfx.tick()
-	var diff = Config.difficulty(Config.round_intensity(elapsed(), round_time), level)
-	if round_time > 60 and elapsed() >= next_refill and time > 5:
-		next_refill += 60
-		var healed = hearts < max_hearts
-		if healed:
-			hearts += 1
-			hud.set_hearts(hearts, max_hearts)
-		world.reset_ijsje()
-		effects.popup_screen("OBER: NIEUW IJSJE! +1 ♥" if healed else "OBER: NIEUW IJSJE!", "bonus", 0.5, 0.7, 2.0)
-		Sfx.ready_sound()
-	riders.step(gdt, diff, elapsed())
+	if fighting:
+		riders.step(gdt, NO_SPAWN, elapsed())
+		boss.step(gdt)
+		if state == "boss":
+			hud.set_boss(boss.bar_state())
+	else:
+		var prev_sec = ceili(time)
+		time -= gdt
+		if ceili(time) != prev_sec and time <= 5 and time > 0:
+			Sfx.tick()
+		var diff = Config.difficulty(Config.round_intensity(elapsed(), round_time), level)
+		if round_time > 60 and elapsed() >= next_refill and time > 5:
+			next_refill += 60
+			var healed = hearts < max_hearts
+			if healed:
+				hearts += 1
+				hud.set_hearts(hearts, max_hearts)
+			world.reset_ijsje()
+			effects.popup_screen("OBER: NIEUW IJSJE! +1 ♥" if healed else "OBER: NIEUW IJSJE!", "bonus", 0.5, 0.7, 2.0)
+			Sfx.ready_sound()
+		riders.step(gdt, diff, elapsed())
 	weapons.step(dt, inp)
 	weapons.try_fire(inp)
 	_update_projectiles(dt * maxf(bt.scale, 0.5))
 	hud.set_score(score)
-	hud.set_time(time)
-	if time <= 0:
-		end_round("TIJD OP!")
+	if not fighting:
+		hud.set_time(time)
+		if time <= 0:
+			start_boss()
 
 
 func end_round(reason: String) -> void:
 	if state == "ended":
 		return
 	state = "ended"
+	hud.show_boss(false)
+	hud.set_cinematic(false)
 	_end_bullet_time(true)
 	bt.scale = 1.0
+	Sfx.restart_music(false)
 	Sfx.set_intensity("title")
 	Sfx.end_round()
 	ended.emit(reason, score, stats)

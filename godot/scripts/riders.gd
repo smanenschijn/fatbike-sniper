@@ -155,6 +155,31 @@ func _person(exclude := "") -> Dictionary:
 	}
 
 
+## A bare (riderless) fatbike in the given colours, e.g. for the boss intro.
+func make_bike(frame: String, accent: String) -> Node3D:
+	var holder = Node3D.new()
+	var bike: Node3D = _bike_tpl.duplicate()
+	bike.transform = Transform3D.IDENTITY
+	bike.visible = true
+	_paint(bike, {"BikeFrame": frame, "BikeAccent": accent})
+	for mi in bike.find_children("*", "GeometryInstance3D", true, false):
+		(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	holder.add_child(bike)
+	return holder
+
+
+## Everybody off the square, fast (the boss is coming). Knives in the air are dropped.
+func flee() -> void:
+	for r in list:
+		r.speed = maxf(r.speed * 2.6, 18.0)
+		r.attack_point = null
+		r.windup = 0.0
+		effects.bubble(r.root, Vector3(0, 2.5, 0), ["WEGWEZEN!", "HIJ KOMT ERAAN!", "MAMAAA!", "RENNEN!"].pick_random(), false, 1.6)
+	for k in knives:
+		k.mesh.queue_free()
+	knives.clear()
+
+
 func _build(type: String) -> Dictionary:
 	var driver = _person()
 	var people = [driver]

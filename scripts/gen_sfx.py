@@ -123,6 +123,18 @@ SOUNDS = {
     'bullet_out': (0.6, [(0, tone(80, 0.5, 'sawtooth', 400, 0.2, 0.02)), (0, noise(0.5, 'bandpass', 300, 3000, 2, 0.35, 0.05))]),
     'warn': (0.3, [(0, tone(1650, 0.07, 'square', None, 0.22)), (0.1, tone(1650, 0.07, 'square', None, 0.22)), (0, noise(0.05, 'highpass', 5000, gain=0.15))]),
     'ready': (0.3, [(0, tone(880, 0.18, 'triangle', None, 0.12)), (0.09, tone(1320, 0.18, 'triangle', None, 0.12))]),
+    # end boss
+    'roar': (2.2, [(0, tone(72, 2.0, 'sawtooth', 44, 0.5, 0.18)), (0, tone(108, 2.0, 'square', 62, 0.16, 0.18)),
+                   (0, noise(2.0, 'lowpass', 700, 180, gain=0.9, attack=0.12)), (0.05, noise(1.8, 'bandpass', 420, 160, 3, 0.6, 0.2))]),
+    'stomp': (0.9, [(0, tone(55, 0.6, 'sine', 26, 1.0)), (0, noise(0.5, 'lowpass', 500, 70, gain=0.9)), (0, noise(0.05, 'highpass', 2500, gain=0.2))]),
+    'rumble': (2.6, [(0, noise(2.5, 'lowpass', 190, 80, gain=1.0, attack=0.9)), (0, tone(38, 2.5, 'sine', None, 0.6, 0.9))]),
+    'transform': (1.3, [(0, tone(140, 1.1, 'square', 900, 0.12, 0.02)), (0, tone(70, 1.1, 'sawtooth', 420, 0.15, 0.02)),
+                        (0, noise(1.1, 'bandpass', 500, 4000, 2, 0.3, 0.05))] + [(0.14 * i, noise(0.03, 'highpass', 3500, gain=0.35)) for i in range(8)]),
+    'clank_heavy': (0.7, [(0, tone(220, 0.5, 'square', 160, 0.22)), (0, tone(330, 0.45, 'triangle', 250, 0.25)),
+                          (0, noise(0.12, 'highpass', 2500, gain=0.6)), (0, tone(80, 0.4, 'sine', 40, 0.7))]),
+    'rocket': (1.0, [(0, noise(0.9, 'bandpass', 300, 1800, 1.5, 0.9, 0.03)), (0, tone(90, 0.3, 'sawtooth', 50, 0.3))]),
+    'rev': (1.6, [(0, tone(55, 1.5, 'sawtooth', 150, 0.35, 0.1)), (0, tone(110, 1.5, 'square', 300, 0.1, 0.1)),
+                  (0, noise(1.5, 'lowpass', 400, 1600, gain=0.4, attack=0.1))]),
 }
 
 
