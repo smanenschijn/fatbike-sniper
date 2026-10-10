@@ -268,7 +268,7 @@ func _update_projectiles(dt: float) -> void:
 			if d.has("explode"):
 				_explode(at, p)
 			else:
-				effects.puff(at, Color("d8cbb5"), 3, 0.35)
+				effects.puff(at, Color("b9a98f"), 3, 0.3)
 			done = true
 		if done:
 			node.queue_free()

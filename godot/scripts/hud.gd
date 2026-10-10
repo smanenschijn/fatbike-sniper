@@ -201,6 +201,8 @@ func _build_game_ui() -> void:
 		bar.color = Color.BLACK
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		bar.set_anchors_preset(Control.PRESET_TOP_WIDE if i == 0 else Control.PRESET_BOTTOM_WIDE)
+		if i == 1:
+			bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
 		bar.custom_minimum_size = Vector2(0, 0)
 		game_ui.add_child(bar)
 		_letterbox.append(bar)

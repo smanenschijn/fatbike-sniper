@@ -132,7 +132,8 @@ func _spawn(mat: String, col: Color, size: float, pos: Vector3, vel: Vector3, li
 func puff(pos: Vector3, col := Color("d8d0c0"), n := 5, size := 0.6) -> void:
 	for i in n:
 		var c = col
-		c.a = 0.8
+		c.a = 0.55
+		c = c.darkened(0.12)
 		_spawn("puff", c, size * randf_range(0.6, 1.2), pos + Vector3(randf_range(-0.2, 0.2), randf() * 0.3, randf_range(-0.2, 0.2)),
 			Vector3(randf_range(-0.75, 0.75), randf_range(0.5, 1.5), randf_range(-0.75, 0.75)), randf_range(0.6, 1.1), 2.2, 0.0, 0.92)
 

@@ -48,6 +48,11 @@ var last_score := {}
 var _look_touch := -1
 var _look_start := {}
 var _auto := {}
+var _post: ColorRect
+var _post_mat: ShaderMaterial
+var _bt_was := false
+var _wave := -1.0
+var _post_t := 0.0
 
 
 func _ready() -> void:
@@ -63,6 +68,19 @@ func _ready() -> void:
 	add_child(camera)
 	camera.position = world.eye
 	camera.current = true
+
+	# bullet-time post-process: a full-screen shader between the 3D view and the HUD
+	var post_layer = CanvasLayer.new()
+	post_layer.layer = 0
+	add_child(post_layer)
+	_post = ColorRect.new()
+	_post.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_post_mat = ShaderMaterial.new()
+	_post_mat.shader = load("res://scripts/bullet_time.gdshader")
+	_post.material = _post_mat
+	_post.visible = false
+	post_layer.add_child(_post)
 
 	hud = Hud.new()
 	add_child(hud)
@@ -313,8 +331,8 @@ func _process(delta: float) -> void:
 			hud.set_aim(null)
 	if mode == "playing" or mode == "paused":
 		hud.set_weapons(weapons.hud_state())
-	var bt: float = game.bullet_amount() if mode == "playing" else 0.0
-	_apply_bullet_look(bt)
+	var bt: float = game.bullet_amount() if mode == "playing" or mode == "paused" else 0.0
+	_apply_bullet_look(bt, dt)
 	camera.position = world.eye
 	if effects.shake > 0:
 		var s = effects.shake * effects.shake * 0.06
@@ -327,13 +345,25 @@ func _process(delta: float) -> void:
 	_auto_step(dt)
 
 
-## Bullet-time grade: desaturate + darken via the environment adjustments.
-func _apply_bullet_look(amount: float) -> void:
-	var env = world.env
-	env.adjustment_enabled = amount > 0.001
-	env.adjustment_saturation = lerpf(1.0, 0.25, amount)
-	env.adjustment_brightness = lerpf(1.0, 0.85, amount)
-	env.adjustment_contrast = lerpf(1.0, 1.15, amount)
+## Bullet-time look: post shader (grade, fringe, vignette, grain, speed lines) + a ripple when it starts.
+func _apply_bullet_look(amount: float, dt: float) -> void:
+	var active: bool = game.bt.active and mode == "playing"
+	if active and not _bt_was:
+		_wave = 0.0  # time ripple
+	_bt_was = active
+	if _wave >= 0.0:
+		_wave += dt * 2.6
+		if _wave > 1.4:
+			_wave = -1.0
+	_post_t += dt
+	_post.visible = amount > 0.001 or _wave >= 0.0
+	if _post.visible:
+		_post_mat.set_shader_parameter("amount", amount)
+		_post_mat.set_shader_parameter("wave", _wave)
+		_post_mat.set_shader_parameter("time_s", _post_t)
+	# focus: a slight zoom-in while time crawls
+	if mode == "playing":
+		camera.fov -= 6.0 * amount * (camera.fov / Config.FOV)
 
 
 # ------------------------------------------------------------ automation (screenshots / smoke tests)
@@ -345,6 +375,8 @@ func _parse_auto_args() -> void:
 			_auto.shot = a.substr(11)
 		elif a == "--autoplay":
 			_auto.play = true
+		elif a == "--bullet":
+			_auto.bullet = true
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
 	if _auto.has("shot"):
@@ -372,6 +404,9 @@ func _auto_step(dt: float) -> void:
 			inp.pitch = asin(d.y)
 			if fmod(_auto.t, 1.2) < dt:
 				inp.fire_pressed = true
+	if _auto.get("bullet", false) and mode == "playing" and game.state == "playing" and _auto.t > _auto.wait - 1.2 and not game.bt.active:
+		game.bt.meter = 1.0
+		game.start_bullet_time()
 	if _auto.t >= _auto.wait:
 		_auto.erase("play")
 		var img = get_viewport().get_texture().get_image()
