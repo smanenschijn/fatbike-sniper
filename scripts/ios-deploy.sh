@@ -9,6 +9,7 @@ DEVICE="${1:-$(xcrun devicectl list devices 2>/dev/null | awk '/physical/ && /iP
 [ -n "$DEVICE" ] || { echo "Geen iPhone gevonden: sluit hem aan en ontgrendel hem."; exit 1; }
 
 scripts/sync-godot-assets.sh
+mkdir -p godot/build && touch godot/build/.gdignore
 rm -rf godot/build/ios && mkdir -p godot/build/ios
 "$GODOT" --headless --path godot --export-debug "iOS" build/ios/FatbikeSniper.xcodeproj >/dev/null 2>&1
 cd godot/build/ios
