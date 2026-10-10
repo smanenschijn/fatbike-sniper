@@ -582,8 +582,11 @@ func _build_title() -> void:
 	var opts = HBoxContainer.new()
 	opts.alignment = BoxContainer.ALIGNMENT_CENTER
 	opts.add_theme_constant_override("separation", 16)
+	var opts2 = HBoxContainer.new()
+	opts2.alignment = BoxContainer.ALIGNMENT_CENTER
 	for group in [["TIJD", "round_time", [[60, "1 MIN"], [180, "3 MIN"], [300, "5 MIN"]]],
-			["NIVEAU", "level", [["easy", "MAKKELIJK"], ["normal", "NORMAAL"], ["hard", "MOEILIJK"]]]]:
+			["NIVEAU", "level", [["easy", "MAKKELIJK"], ["normal", "NORMAAL"], ["hard", "MOEILIJK"]]],
+			["EINDBAAS", "boss", [[true, "AAN"], [false, "UIT (VUURWERK)"]]]]:
 		var p = _panel()
 		p.mouse_filter = Control.MOUSE_FILTER_PASS
 		var h = HBoxContainer.new()
@@ -598,8 +601,9 @@ func _build_title() -> void:
 			h.add_child(b)
 			_opt_buttons[group[1]].append(b)
 		p.add_child(h)
-		opts.add_child(p)
+		(opts2 if group[1] == "boss" else opts).add_child(p)
 	v.add_child(opts)
+	v.add_child(opts2)
 	var start = _button("SPELEN", 48)
 	start.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	start.pressed.connect(func(): start_pressed.emit())
@@ -737,7 +741,7 @@ func show_end(reason: String, rank: String, mode_label: String, score: int, stat
 	var acc = roundi(100.0 * stats.hits / stats.shots) if stats.shots > 0 else 0
 	for pair in [["Van de fiets", stats.kills], ["Headshots", stats.headshots], ["Nauwkeurigheid", "%d%%" % acc],
 			["Messen geraakt", stats.knives], ["Beste combo", "%dx" % stats.best_multi],
-			["Fatbiketron", "VERSLAGEN!" if stats.get("boss_win", false) else "%d/6 delen" % stats.get("boss_parts", 0)]]:
+			["Fatbiketron", ("VERSLAGEN!" if stats.get("boss_win", false) else "%d/6 delen" % stats.get("boss_parts", 0)) if stats.get("boss_on", true) else "UIT"]]:
 		var v = VBoxContainer.new()
 		v.add_child(_label(pair[0], 15, Color("fff8ea"), 0, true))
 		v.add_child(_label(str(pair[1]), 28, YELLOW, 4))

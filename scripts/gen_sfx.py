@@ -133,6 +133,9 @@ SOUNDS = {
     'clank_heavy': (0.7, [(0, tone(220, 0.5, 'square', 160, 0.22)), (0, tone(330, 0.45, 'triangle', 250, 0.25)),
                           (0, noise(0.12, 'highpass', 2500, gain=0.6)), (0, tone(80, 0.4, 'sine', 40, 0.7))]),
     'rocket': (1.0, [(0, noise(0.9, 'bandpass', 300, 1800, 1.5, 0.9, 0.03)), (0, tone(90, 0.3, 'sawtooth', 50, 0.3))]),
+    'launch': (1.2, [(0, tone(500, 1.1, 'sine', 2200, 0.18, 0.05)), (0, noise(1.0, 'bandpass', 900, 3000, 4, 0.25, 0.05))]),
+    'firework': (1.6, [(0, noise(0.6, 'lowpass', 1400, 120, gain=1.0)), (0, tone(80, 0.4, 'sine', 40, 0.6))]
+                 + [(0.25 + i * 0.07 + random.uniform(0, 0.05), noise(0.03, 'highpass', 3500, gain=0.35)) for i in range(14)]),
     'rev': (1.6, [(0, tone(55, 1.5, 'sawtooth', 150, 0.35, 0.1)), (0, tone(110, 1.5, 'square', 300, 0.1, 0.1)),
                   (0, noise(1.5, 'lowpass', 400, 1600, gain=0.4, attack=0.1))]),
 }

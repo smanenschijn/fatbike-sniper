@@ -169,12 +169,12 @@ func make_bike(frame: String, accent: String) -> Node3D:
 
 
 ## Everybody off the square, fast (the boss is coming). Knives in the air are dropped.
-func flee() -> void:
+func flee(lines := ["WEGWEZEN!", "HIJ KOMT ERAAN!", "MAMAAA!", "RENNEN!"]) -> void:
 	for r in list:
 		r.speed = maxf(r.speed * 2.6, 18.0)
 		r.attack_point = null
 		r.windup = 0.0
-		effects.bubble(r.root, Vector3(0, 2.5, 0), ["WEGWEZEN!", "HIJ KOMT ERAAN!", "MAMAAA!", "RENNEN!"].pick_random(), false, 1.6)
+		effects.bubble(r.root, Vector3(0, 2.5, 0), lines.pick_random(), false, 1.6)
 	for k in knives:
 		k.mesh.queue_free()
 	knives.clear()

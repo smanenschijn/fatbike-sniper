@@ -3,7 +3,7 @@ extends Node
 
 const NAMES := ["katapult", "shotgun", "sniper", "bazooka", "explosion", "hit", "hit_head", "knock_off", "bell", "whoosh",
 	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready", "warn",
-	"roar", "stomp", "rumble", "transform", "clank_heavy", "rocket", "rev"]
+	"roar", "stomp", "rumble", "transform", "clank_heavy", "rocket", "rev", "launch", "firework"]
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -96,6 +96,8 @@ func rumble() -> void: play("rumble", 2.0)
 func transform() -> void: play("transform", -2.0)
 func clank_heavy() -> void: play("clank_heavy", 0.0, randf_range(0.85, 1.1))
 func rocket() -> void: play("rocket", -1.0)
+func launch() -> void: play("launch", -8.0, randf_range(0.85, 1.2))
+func firework(dist := 30.0) -> void: play("firework", clampf(2.0 - dist / 12.0, -10.0, 0.0), randf_range(0.8, 1.2))
 func rev() -> void: play("rev", -4.0, randf_range(0.85, 1.15))
 
 

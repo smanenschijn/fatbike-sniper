@@ -8,6 +8,8 @@ var eye = Vector3(0, 1.2, 11.55)
 var env: Environment
 var ijsje: Node3D
 var parasols: Array = []
+var sun: DirectionalLight3D
+var _dusk_tween: Tween
 var _ijs_init := {}
 var ijsje_fall := {}
 var _ijs_bits: Array = []
@@ -75,7 +77,7 @@ func _build_environment() -> void:
 	we.environment = env
 	add_child(we)
 
-	var sun = DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.light_color = Color("ffe2b8")
 	sun.light_energy = 2.2
 	sun.shadow_enabled = true
@@ -101,6 +103,17 @@ func fold_parasol(folded: bool) -> void:
 		if (p as Node3D).scale.is_equal_approx(target):
 			continue
 		create_tween().tween_property(p, "scale", target, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN if folded else Tween.EASE_OUT)
+
+
+## Evening falls for the fireworks show (and lifts again for the next round).
+func set_dusk(on: bool, secs := 1.5) -> void:
+	if _dusk_tween:
+		_dusk_tween.kill()
+	_dusk_tween = create_tween().set_parallel()
+	_dusk_tween.tween_property(env, "background_energy_multiplier", 0.18 if on else 1.0, secs)
+	_dusk_tween.tween_property(env, "ambient_light_energy", 0.3 if on else 0.75, secs)
+	_dusk_tween.tween_property(sun, "light_energy", 0.35 if on else 2.2, secs)
+	_dusk_tween.tween_property(env, "fog_light_color", Color("1c2238") if on else Color("cfe0ee"), secs)
 
 
 func knock_over_ijsje(from_dir: Vector3) -> void:

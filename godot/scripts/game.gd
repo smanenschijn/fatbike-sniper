@@ -13,7 +13,7 @@ var effects: Effects
 var hud: Hud
 var camera: Camera3D
 
-var state = "idle"  # idle | countdown | playing | boss_intro | boss | boss_won | ended
+var state = "idle"  # idle | countdown | playing | boss_intro | boss | boss_won | fireworks | ended
 var round_time := 60.0
 var level: Dictionary = Config.LEVELS.normal
 var level_key := "normal"
@@ -31,6 +31,8 @@ var tracers: Array = []
 var boss: Fatbiketron
 var _round_id := 0
 var _tip_t := 0.0
+var boss_on := true
+var _show := {}   # fireworks show: {t, next, launched}
 
 const NO_SPAWN := {"spawn_interval": 99.0, "max_alive": 0, "attack_chance": 0.0, "speed_mul": 1.0}
 
@@ -53,7 +55,8 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	boss.player_hit.connect(on_player_hit)
 
 
-func reset(p_round_time: float, p_level: String) -> void:
+func reset(p_round_time: float, p_level: String, p_boss := true) -> void:
+	boss_on = p_boss
 	round_time = p_round_time
 	level_key = p_level
 	level = Config.LEVELS[p_level]
@@ -62,6 +65,8 @@ func reset(p_round_time: float, p_level: String) -> void:
 	boss.settings = {"accuracy": level.accuracy, "windup": level.windup, "hp": level.boss_hp, "speed": level.speed}
 	boss.reset()
 	world.fold_parasol(false)
+	world.set_dusk(false, 0.01)
+	_show = {}
 	_round_id += 1
 	hud.show_boss(false)
 	hud.set_cinematic(false)
@@ -81,7 +86,7 @@ func reset(p_round_time: float, p_level: String) -> void:
 	time = round_time
 	hearts = max_hearts
 	stats = {"shots": 0, "hits": 0, "kills": 0, "headshots": 0, "knives": 0, "best_multi": 1, "bosses": 0,
-		"boss_parts": 0, "boss_win": false}
+		"boss_parts": 0, "boss_win": false, "boss_on": boss_on}
 	countdown = 3.6
 	last_count = 99
 	state = "countdown"
@@ -422,6 +427,43 @@ func _boss_hit(part: String, dmg: float, point: Vector3) -> bool:
 	return false
 
 
+# ------------------------------------------------------------ survived without the boss: fireworks
+
+const SHOW_LENGTH := 7.5
+
+
+func start_fireworks() -> void:
+	state = "fireworks"
+	time = 0.0
+	hud.set_time(0)
+	_end_bullet_time(true)
+	bt.scale = 1.0
+	riders.flee(["VUURWERK!", "OEEEH!", "MOOI HOOR!", "IK BEN BANG VOOR KNALLEN!", "AAAH, MIJN OREN!"])
+	hud.message("OVERLEEFD!", 1.8)
+	Sfx.cheer()
+	world.fold_parasol(true)
+	world.set_dusk(true)
+	_show = {"t": 0.0, "next": 1.2}
+
+
+func _step_fireworks(dt: float, inp) -> void:
+	_show.t += dt
+	riders.step(dt, NO_SPAWN, elapsed())
+	weapons.step(dt, inp)
+	_update_projectiles(dt)
+	# look up at the sky above the square
+	inp.yaw = lerp_angle(inp.yaw, 0.0, minf(1.0, dt * 1.5))
+	inp.pitch = lerpf(inp.pitch, 0.32, minf(1.0, dt * 1.5))
+	if _show.t >= _show.next and _show.t < SHOW_LENGTH - 1.8:
+		_show.next += randf_range(0.25, 0.6)
+		var from = Vector3(randf_range(-16, 16), 2.0, randf_range(-30, -16))
+		effects.firework(from, randf_range(17, 27), ["ball", "ball", "ring", "willow"].pick_random())
+		if randf() < 0.25:  # sometimes a pair
+			effects.firework(from + Vector3(randf_range(-4, 4), 0, 0), randf_range(17, 27), "ball")
+	if _show.t >= SHOW_LENGTH:
+		end_round("OVERLEEFD!")
+
+
 func start_boss() -> void:
 	state = "boss_intro"
 	time = 0.0
@@ -599,6 +641,9 @@ func step(dt: float, inp) -> void:
 	if state == "boss_intro":
 		_step_boss_intro(dt, inp)
 		return
+	if state == "fireworks":
+		_step_fireworks(dt, inp)
+		return
 	if state != "playing" and state != "boss" and state != "boss_won":
 		return
 	var fighting: bool = state != "playing"
@@ -643,7 +688,10 @@ func step(dt: float, inp) -> void:
 	if not fighting:
 		hud.set_time(time)
 		if time <= 0:
-			start_boss()
+			if boss_on:
+				start_boss()
+			else:
+				start_fireworks()
 
 
 func end_round(reason: String) -> void:

@@ -41,7 +41,7 @@ var game: Game
 var camera: Camera3D
 var inp := InputState.new()
 var mode := "title"  # title | playing | paused | ended
-var settings := {"round_time": 60, "level": "normal"}
+var settings := {"round_time": 60, "level": "normal", "boss": true}
 var touch := false
 var demo_t := 0.0
 var last_score := {}
@@ -135,6 +135,7 @@ func show_title() -> void:
 	game.state = "idle"
 	game.boss.reset()
 	world.fold_parasol(false)
+	world.set_dusk(false, 0.01)
 	Sfx.restart_music(false)
 	Sfx.set_intensity("title")
 
@@ -147,7 +148,7 @@ func start_game() -> void:
 	inp.yaw = 0.0
 	inp.pitch = -0.05
 	inp.zoom_toggle = false
-	game.reset(settings.round_time, settings.level)
+	game.reset(settings.round_time, settings.level, settings.boss)
 	mode = "playing"
 	if not touch:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -188,7 +189,7 @@ func _rank(score: float) -> String:
 
 
 func _mode_label() -> String:
-	return "%d min · %s" % [settings.round_time / 60, Config.LEVELS[settings.level].label]
+	return "%d min · %s%s" % [settings.round_time / 60, Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 
 
 func _on_option(key: String, value) -> void:
@@ -201,8 +202,9 @@ func _on_option(key: String, value) -> void:
 
 # ------------------------------------------------------------ persistence
 
+## Separate hall of fame with and without the end boss (the boss is worth a lot of points).
 func _mode_key() -> String:
-	return "%d_%s" % [settings.round_time, settings.level]
+	return "%d_%s%s" % [settings.round_time, settings.level, "" if settings.boss else "_noboss"]
 
 
 func _load_scores() -> Array:
@@ -243,6 +245,7 @@ func _load_settings() -> void:
 			settings.round_time = rt
 		if Config.LEVELS.has(lv):
 			settings.level = lv
+		settings.boss = bool(cfg.get_value("round", "boss", true))
 
 
 func _save_settings() -> void:
@@ -250,6 +253,7 @@ func _save_settings() -> void:
 	cfg.load(SETTINGS_FILE)
 	cfg.set_value("round", "round_time", settings.round_time)
 	cfg.set_value("round", "level", settings.level)
+	cfg.set_value("round", "boss", settings.boss)
 	cfg.save(SETTINGS_FILE)
 
 
@@ -397,6 +401,8 @@ func _parse_auto_args() -> void:
 			_auto.knife = true
 		elif a == "--bullet":
 			_auto.bullet = true
+		elif a == "--noboss":
+			settings.boss = false
 		elif a == "--boss":
 			_auto.boss = true
 		elif a == "--bossfight":

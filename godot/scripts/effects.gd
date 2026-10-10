@@ -10,6 +10,7 @@ var _debris: Array = []
 var _particles: Array = []
 var _lights: Array = []
 var _popups: Array = []
+var _fireworks: Array = []
 var _quad := QuadMesh.new()
 var _mats := {}
 var _font: Font
@@ -171,6 +172,54 @@ func explosion(pos: Vector3) -> void:
 	flash_light(pos + Vector3(0, 1, 0), Color("ff9a40"), 12.0, 0.35, 30.0)
 	popup_world(pos + Vector3(0, 2, 0), "BOEM!", "boem", 0.9)
 	add_shake(0.8)
+
+
+# ------------------------------------------------------------ fireworks
+
+const FIREWORK_COLORS := [Color("ff3b6b"), Color("ffd23f"), Color("35c2ff"), Color("7cff6b"), Color("ff8a1f"), Color("c77dff"), Color("ffffff")]
+
+
+## Launch a firework rocket from `from`; it bursts around height `burst_y` (kind: "ball" | "ring" | "willow").
+func firework(from: Vector3, burst_y: float, kind := "ball", col: Color = FIREWORK_COLORS.pick_random()) -> void:
+	var vel = Vector3(randf_range(-1.5, 1.5), sqrt(2.0 * 4.0 * maxf(1.0, burst_y - from.y)) , randf_range(-1.5, 1.5))
+	_fireworks.append({"pos": from, "vel": vel, "kind": kind, "col": col, "trail": 0.0})
+	Sfx.launch()
+
+
+func _burst(pos: Vector3, kind: String, col: Color) -> void:
+	var n = 70 if kind != "ring" else 48
+	var col2: Color = FIREWORK_COLORS.pick_random()
+	var axis = Vector3(randf_range(-0.4, 0.4), 1, randf_range(-0.4, 0.4)).normalized()
+	for i in n:
+		var dir: Vector3
+		if kind == "ring":
+			var a = TAU * i / n
+			dir = Basis(Vector3.RIGHT, 1.2) * Vector3(cos(a), 0, sin(a))
+			dir = Basis(axis, randf()) * dir
+		else:
+			dir = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized()
+		var willow = kind == "willow"
+		var speed = randf_range(9, 13) if not willow else randf_range(5, 7.5)
+		var c = col if i % 4 else col2
+		_spawn("fire", c, 1.0 if not willow else 0.75, pos, dir * speed, randf_range(1.3, 1.8) if not willow else randf_range(2.2, 2.8),
+			0.35, 3.0 if not willow else 5.5, 0.955 if not willow else 0.975)
+	_spawn("flash", Color(col.r, col.g, col.b, 1), 6.0, pos, Vector3.ZERO, 0.15, 1.5)
+	flash_light(pos, col, 10.0, 0.5, 60.0)
+	Sfx.firework(camera.global_position.distance_to(pos) if camera else 30.0)
+
+
+func _update_fireworks(dt: float) -> void:
+	for i in range(_fireworks.size() - 1, -1, -1):
+		var f: Dictionary = _fireworks[i]
+		f.vel.y -= 4.0 * dt
+		f.pos += f.vel * dt
+		f.trail -= dt
+		if f.trail <= 0:
+			f.trail = 0.02
+			_spawn("fire", Color("ffe3a0"), 0.3, f.pos, Vector3(randf_range(-0.3, 0.3), -1.0, randf_range(-0.3, 0.3)), 0.35, 0.3)
+		if f.vel.y <= 1.0:
+			_burst(f.pos, f.kind, f.col)
+			_fireworks.remove_at(i)
 
 
 func stars(pos: Vector3) -> void:
@@ -338,6 +387,7 @@ func clear() -> void:
 		p.lb.queue_free()
 	_debris.clear()
 	_particles.clear()
+	_fireworks.clear()
 	_lights.clear()
 	_popups.clear()
 	shake = 0.0
@@ -346,5 +396,6 @@ func clear() -> void:
 func step(dt: float) -> void:
 	_update_debris(dt)
 	_update_particles(dt)
+	_update_fireworks(dt)
 	_update_popups(dt)
 	shake = maxf(0.0, shake - dt * 2.5)
