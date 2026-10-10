@@ -331,6 +331,7 @@ func _process(delta: float) -> void:
 			hud.set_aim(null)
 	if mode == "playing" or mode == "paused":
 		hud.set_weapons(weapons.hud_state())
+		hud.set_threats(_screen_threats())
 	var bt: float = game.bullet_amount() if mode == "playing" or mode == "paused" else 0.0
 	_apply_bullet_look(bt, dt)
 	camera.position = world.eye
@@ -343,6 +344,20 @@ func _process(delta: float) -> void:
 		effects.step(wdt)
 	inp.end_frame()
 	_auto_step(dt)
+
+
+## Project the riders' threats to screen space for the HUD (rings on screen, arrows on the edge).
+func _screen_threats() -> Array:
+	var out = []
+	var vs := get_viewport().get_visible_rect().size
+	for th in riders.threats():
+		var behind := camera.is_position_behind(th.pos)
+		var sp := camera.unproject_position(th.pos)
+		if behind:
+			sp = vs - sp  # mirror so the arrow points the right way
+		var onscreen := not behind and sp.x > 0 and sp.y > 0 and sp.x < vs.x and sp.y < vs.y
+		out.append({"screen": sp, "onscreen": onscreen, "kind": th.kind, "urgency": th.urgency})
+	return out
 
 
 ## Bullet-time look: post shader (grade, fringe, vignette, grain, speed lines) + a ripple when it starts.
@@ -375,6 +390,8 @@ func _parse_auto_args() -> void:
 			_auto.shot = a.substr(11)
 		elif a == "--autoplay":
 			_auto.play = true
+		elif a == "--knife":
+			_auto.knife = true
 		elif a == "--bullet":
 			_auto.bullet = true
 		elif a.begins_with("--wait="):
@@ -402,8 +419,13 @@ func _auto_step(dt: float) -> void:
 			var d = (t - world.eye).normalized()
 			inp.yaw = atan2(-d.x, -d.z)
 			inp.pitch = asin(d.y)
-			if fmod(_auto.t, 1.2) < dt:
+			if fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
 				inp.fire_pressed = true
+	if _auto.get("knife", false) and game.state == "playing" and _auto.t > _auto.wait - 2.0 and not _auto.has("knife_done"):
+		_auto.knife_done = true
+		var near = riders.list.filter(func(r): return r.alive and (r.root as Node3D).position.distance_to(world.eye) < 30)
+		if not near.is_empty():
+			riders.start_windup(near[0], true)
 	if _auto.get("bullet", false) and mode == "playing" and game.state == "playing" and _auto.t > _auto.wait - 1.2 and not game.bt.active:
 		game.bt.meter = 1.0
 		game.start_bullet_time()

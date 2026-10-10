@@ -121,6 +121,7 @@ SOUNDS = {
     'end': (1.0, [(i * 0.18, tone(f, 0.3, 'square', None, 0.12)) for i, f in enumerate((523, 440, 349, 262))]),
     'bullet_in': (1.3, [(0, tone(320, 0.9, 'sawtooth', 60, 0.25, 0.02)), (0, noise(1.0, 'bandpass', 3000, 200, 2, 0.5, 0.05)), (0, tone(55, 1.2, 'sine', None, 0.6, 0.05))]),
     'bullet_out': (0.6, [(0, tone(80, 0.5, 'sawtooth', 400, 0.2, 0.02)), (0, noise(0.5, 'bandpass', 300, 3000, 2, 0.35, 0.05))]),
+    'warn': (0.3, [(0, tone(1650, 0.07, 'square', None, 0.22)), (0.1, tone(1650, 0.07, 'square', None, 0.22)), (0, noise(0.05, 'highpass', 5000, gain=0.15))]),
     'ready': (0.3, [(0, tone(880, 0.18, 'triangle', None, 0.12)), (0.09, tone(1320, 0.18, 'triangle', None, 0.12))]),
 }
 

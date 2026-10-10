@@ -49,7 +49,7 @@ func reset(p_round_time: float, p_level: String) -> void:
 	level_key = p_level
 	level = Config.LEVELS[p_level]
 	max_hearts = level.hearts
-	riders.settings = {"accuracy": level.accuracy}
+	riders.settings = {"accuracy": level.accuracy, "windup": level.windup}
 	world.reset_ijsje()
 	next_refill = 60.0
 	riders.clear()

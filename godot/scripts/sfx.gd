@@ -2,7 +2,7 @@ extends Node
 ## Autoload "Sfx": sound effects (pre-rendered synth WAVs), the soundtrack, and the bullet-time "slowed" mix.
 
 const NAMES := ["katapult", "shotgun", "sniper", "bazooka", "explosion", "hit", "hit_head", "knock_off", "bell", "whoosh",
-	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready"]
+	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready", "warn"]
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -86,6 +86,7 @@ func end_round() -> void: play("end")
 func bullet_in() -> void: play("bullet_in")
 func bullet_out() -> void: play("bullet_out")
 func ready_sound() -> void: play("ready")
+func warn() -> void: play("warn", 2.0)
 
 
 # ------------------------------------------------------------ music

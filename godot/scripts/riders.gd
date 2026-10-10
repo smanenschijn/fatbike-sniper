@@ -33,7 +33,7 @@ const VARIANT_META := {
 
 var effects: Effects
 var player_eye := Vector3.ZERO
-var settings := {"accuracy": 0.6}
+var settings := {"accuracy": 0.6, "windup": 0.75}
 var list: Array = []
 var knives: Array = []
 var spawn_timer := 1.0
@@ -366,7 +366,12 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			if d < 6:
 				speed *= 0.65
 			if d < 2.5:
-				throw_knife(r, randf() < settings.accuracy)
+				start_windup(r, randf() < settings.accuracy)
+		if r.get("windup", 0.0) > 0.0:  # winding up for a throw: slow down, then let go
+			speed *= 0.5
+			r.windup -= dt
+			if r.windup <= 0.0:
+				_release_knife(r)
 		r.dist += speed * dt
 		if r.dist >= r.len:
 			r.root.queue_free()
@@ -495,6 +500,25 @@ func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> v
 
 # ------------------------------------------------------------ knives
 
+## Telegraph a throw: a red "!" and a warning beep, the knife leaves after `settings.windup` seconds.
+## Knock the rider off in time and nothing is thrown.
+func start_windup(r: Dictionary, accurate: bool) -> void:
+	if r.get("windup", 0.0) > 0.0:
+		return
+	r.windup = settings.windup
+	r.windup_total = settings.windup
+	r.windup_accurate = accurate
+	r.thrown = true
+	r.knife_cooldown = randf_range(3, 5) + settings.windup
+	effects.bubble(r.root, Vector3(0, 2.7, 0), "!", true, settings.windup + 0.15)
+	Sfx.warn()
+
+
+func _release_knife(r: Dictionary) -> void:
+	r.windup = 0.0
+	throw_knife(r, r.get("windup_accurate", true))
+
+
 func throw_knife(r: Dictionary, accurate: bool) -> void:
 	var from: Vector3 = (r.model as Node3D).global_transform * Vector3(0.25, 1.4, -0.25)
 	var target = player_eye
@@ -502,7 +526,7 @@ func throw_knife(r: Dictionary, accurate: bool) -> void:
 		target += Vector3(randf_range(-0.15, 0.15), randf_range(-0.1, 0.1), 0)
 	else:
 		target += Vector3(randf_range(-1, 1), randf_range(0.2, 1.4), 0).normalized() * randf_range(1.1, 1.9)
-	var T = clampf(from.distance_to(target) / 15.0, 0.9, 1.9)
+	var T = clampf(from.distance_to(target) / 12.0, 1.1, 2.2)  # a bit slower: time to react
 	var vel = (target - from) / T + Vector3(0, 0.5 * Config.GRAVITY * T, 0)
 	var mesh: Node3D = _knife_tpl.duplicate()
 	add_child(mesh)
@@ -522,8 +546,8 @@ func retaliate() -> void:
 	var cands = list.filter(func(r): return r.alive and r.knife_cooldown <= 0 and r.type != "wheelie" and (r.root as Node3D).position.distance_to(player_eye) < 42)
 	if cands.is_empty():
 		return
-	throw_knife(cands.pick_random(), randf() < settings.accuracy - 0.05)
-	retaliate_cooldown = 1.4
+	start_windup(cands.pick_random(), randf() < settings.accuracy - 0.05)
+	retaliate_cooldown = 1.4 + settings.windup
 
 
 func raycast_knives(origin: Vector3, dir: Vector3, max_dist := 300.0) -> Array:
@@ -533,7 +557,7 @@ func raycast_knives(origin: Vector3, dir: Vector3, max_dist := 300.0) -> Array:
 		var tca = c.dot(dir)
 		if tca < 0 or tca > max_dist:
 			continue
-		if c.length_squared() - tca * tca < 0.45 * 0.45:
+		if c.length_squared() - tca * tca < 0.7 * 0.7:  # generous: knives are meant to be shot down
 			out.append({"knife": k, "t": tca})
 	out.sort_custom(func(a, b): return a.t < b.t)
 	return out
@@ -566,6 +590,20 @@ func _update_knives(dt: float) -> void:
 				Sfx.clank()
 			mesh.queue_free()
 			knives.remove_at(i)
+
+
+## Everything that threatens the player right now, for the HUD:
+## [{pos, kind ("knife" | "windup"), urgency 0..1}]
+func threats() -> Array:
+	var out = []
+	for k in knives:
+		var p: Vector3 = (k.mesh as Node3D).global_position
+		out.append({"pos": p, "kind": "knife", "urgency": clampf(1.0 - p.distance_to(player_eye) / 30.0, 0.0, 1.0)})
+	for r in list:
+		if r.alive and r.get("windup", 0.0) > 0.0:
+			var p: Vector3 = (r.model as Node3D).global_transform * Vector3(0.0, 2.2, 0.0)
+			out.append({"pos": p, "kind": "windup", "urgency": 1.0 - r.windup / maxf(0.01, r.windup_total)})
+	return out
 
 
 func clear() -> void:

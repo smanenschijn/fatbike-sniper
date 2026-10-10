@@ -45,6 +45,7 @@ var _damage: ColorRect
 var _letterbox: Array = []
 var _bt_banner: Label
 var _zoom_btn: Button
+var _threats: ThreatOverlay
 var _last := {}
 var _opt_buttons := {}
 var _hs_title: VBoxContainer
@@ -234,6 +235,11 @@ func _build_game_ui() -> void:
 	_hearts.add_theme_constant_override("separation", 8)
 	game_ui.add_child(_hearts)
 
+	_threats = ThreatOverlay.new()
+	_threats.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_threats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game_ui.add_child(_threats)
+
 	_crosshair = Crosshair.new()
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
 	game_ui.add_child(_crosshair)
@@ -392,6 +398,12 @@ func set_weapons(st: Dictionary) -> void:
 		_reload_bar.size.x = 120 * st.reload
 	if _zoom_btn:
 		_zoom_btn.visible = st.key == "sniper"
+
+
+## Threat markers: [{screen: Vector2, onscreen: bool, kind, urgency}]
+func set_threats(list: Array) -> void:
+	_threats.items = list
+	_threats.queue_redraw()
 
 
 func set_aim(pos) -> void:
@@ -689,6 +701,47 @@ class Crosshair extends Control:
 		for d in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
 			draw_line(d * 6, d * 17, ink, 6)
 			draw_line(d * 6, d * 17, Color.WHITE, 3)
+
+
+class ThreatOverlay extends Control:
+	## Red pulsing rings around incoming knives; arrows on the screen edge for danger out of view.
+	var items: Array = []
+
+	func _draw() -> void:
+		var t := Time.get_ticks_msec() / 1000.0
+		var c := size / 2.0
+		var margin := 56.0
+		for it in items:
+			var u: float = it.urgency
+			var knife: bool = it.kind == "knife"
+			var col := Color("ff2a3a") if knife else Color("ff9a1f")
+			var pulse := 0.5 + 0.5 * sin(t * (10.0 + 8.0 * u))
+			if it.onscreen:
+				if not knife:
+					continue  # wind-ups already show a "!" bubble above the rider
+				var p: Vector2 = it.screen
+				var r := lerpf(22.0, 58.0, u) + pulse * 4.0
+				draw_arc(p, r, 0, TAU, 40, Color(0, 0, 0, 0.55), 7.0)
+				draw_arc(p, r, 0, TAU, 40, Color(col, 0.75 + 0.25 * pulse), 4.0)
+				for k in 4:
+					var a := float(k) / 4.0 * TAU + t * 2.0
+					var dir := Vector2(cos(a), sin(a))
+					draw_line(p + dir * (r + 4), p + dir * (r + 14), Color(0, 0, 0, 0.6), 6.0)
+					draw_line(p + dir * (r + 4), p + dir * (r + 14), col, 3.0)
+			else:
+				var d: Vector2 = it.screen - c
+				if d.length() < 0.001:
+					d = Vector2(0, 1)
+				d = d.normalized()
+				var half := c - Vector2(margin, margin)
+				var s := minf(half.x / maxf(absf(d.x), 0.001), half.y / maxf(absf(d.y), 0.001))
+				var tip := c + d * s
+				var size_ := lerpf(22.0, 40.0, u) * (1.0 + 0.15 * pulse)
+				var side := Vector2(-d.y, d.x)
+				var pts := PackedVector2Array([tip, tip - d * size_ + side * size_ * 0.6, tip - d * size_ - side * size_ * 0.6])
+				var outline := PackedVector2Array([tip + d * 4, tip - d * (size_ + 4) + side * (size_ * 0.6 + 4), tip - d * (size_ + 4) - side * (size_ * 0.6 + 4)])
+				draw_colored_polygon(outline, Color(0, 0, 0, 0.7))
+				draw_colored_polygon(pts, Color(col, 0.8 + 0.2 * pulse))
 
 
 class ScopeOverlay extends Control:
