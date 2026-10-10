@@ -151,6 +151,19 @@ func _button(text: String, size := 40, secondary := false) -> Button:
 	return b
 
 
+## A round touch button. The square around the circle still counts as a press, so near-misses fire too.
+func _round_button(text: String, size: int, diameter: float, secondary := false) -> Button:
+	var b = _button(text, size, secondary)
+	b.custom_minimum_size = Vector2(diameter, diameter)
+	for state_name in ["normal", "hover", "pressed", "focus"]:
+		var sb: StyleBoxFlat = b.get_theme_stylebox(state_name)
+		sb.set_corner_radius_all(int(diameter / 2.0))
+		sb.corner_detail = 16
+		sb.content_margin_left = 0
+		sb.content_margin_right = 0
+	return b
+
+
 func _logo(parent: Node) -> void:
 	var v = VBoxContainer.new()
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -318,23 +331,22 @@ func _build_game_ui() -> void:
 
 
 func _build_touch_buttons() -> void:
-	var fire = _button("VUUR", 34)
+	var fire = _round_button("VUUR", 40, 180)
 	fire.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	fire.custom_minimum_size = Vector2(130, 130)
-	fire.position = Vector2(-160, -260)
+	fire.position = Vector2(-230, -470)
 	fire.button_down.connect(func(): touch_fire.emit(true))
 	fire.button_up.connect(func(): touch_fire.emit(false))
 	game_ui.add_child(fire)
 	_play_widgets.append(fire)
-	var reload = _button("R", 26, true)
+	var reload = _round_button("R", 30, 84, true)
 	reload.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	reload.position = Vector2(-110, -360)
+	reload.position = Vector2(-340, -575)
 	reload.button_down.connect(func(): touch_key.emit(KEY_R))
 	game_ui.add_child(reload)
 	_play_widgets.append(reload)
-	_zoom_btn = _button("ZOOM", 24, true)
+	_zoom_btn = _round_button("ZOOM", 24, 110, true)
 	_zoom_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_zoom_btn.position = Vector2(-330, -200)
+	_zoom_btn.position = Vector2(-400, -350)
 	_zoom_btn.button_down.connect(func(): touch_zoom_toggle.emit())
 	game_ui.add_child(_zoom_btn)
 	_play_widgets.append(_zoom_btn)
