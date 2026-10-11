@@ -230,17 +230,17 @@ def corner_tower(c, r=4.3, H=16.0):
     fw = 2 * r * math.sin(math.pi / 8)
     p.append(cyl('tower', r, H, (c.x, c.y, H / 2), M['brick_orange'], seg=8, rot=(0, 0, rot), smooth=False))
     p.append(cyl('tower_band', r * 1.02, 0.18, (c.x, c.y, 4.45), M['stone'], seg=8, rot=(0, 0, rot), smooth=False))
-    for k in (-2, -1, 0, 1, 2):  # south .. north faces (the west ones are inside the block)
+    for k in (-3, -2, -1, 1, 2, 3, 4):  # every face except the east one, where the gallery joins
         th = k * math.pi / 4
         face = []
-        if k in (-1, 0, 1):
-            face += sq.shopfront(fw, 4.0, 'DE DONUTFABRIEK' if k == 0 else ('KOFFIE' if k == 1 else 'DONUTS'),
-                                 'mullion', 'sign_red', ('fab_red', 'fab_cream') if k == 0 else None)
+        if k in (-3, -2, -1):
+            face += sq.shopfront(fw, 4.0, 'DE DONUTFABRIEK' if k == -2 else ('KOFFIE' if k == -1 else 'DONUTS'),
+                                 'mullion', 'sign_red', ('fab_red', 'fab_cream') if k == -2 else None)
             face = shifted(face, -fw / 2)
         for f in range(4):
             zc = 4.4 + f * 2.9 + 1.5
             face += sq.window(0, zc, min(1.3, fw * 0.4), 1.6, 'frame_white')
-        if k == 0:
+        if k == -2:
             face += balcony(0, 4.4 + 2 * 2.9 + 0.08, fw - 0.4)
         fo = join(face, 'tower_face')
         fo.location = (c.x + ap * math.cos(th), c.y + ap * math.sin(th), 0)
@@ -562,44 +562,51 @@ def build():
     # --- ground: street klinkers everywhere, grey slabs on the square, salmon pavers along the gallery,
     #     warm klinkers with brown stripes on the fountain side
     g = [box('Ground_Klinkers', (160, 130, 0.2), (0, 15, -0.1), M['klinkers'], smooth=False),
-         box('Square_Slabs', (28.0, 34.0, 0.06), (2.0, 3.0, 0.0), M['slabs'], smooth=False),
-         box('Gallery_Pavers', (19.8, 3.6, 0.07), (-1.4, 18.2, 0.0), M['pavers'], smooth=False),
+         box('Square_Slabs', (38.0, 34.0, 0.06), (-3.0, 3.0, 0.0), M['slabs'], smooth=False),
+         box('Gallery_Pavers', (15.5, 3.6, 0.07), (0.75, 18.2, 0.0), M['pavers'], smooth=False),
          box('Road_Klinkers', (7.5, 6.0, 0.08), (12.25, 17.0, 0.0), M['klinkers'], smooth=False),
-         box('Fountain_Klinkers', (4.4, 24.0, 0.07), (-9.8, -2.0, 0.0), M['klinkers'], smooth=False)]
+         box('Road_Klinkers_W', (7.0, 6.0, 0.08), (-18.5, 17.0, 0.0), M['klinkers'], smooth=False),
+         box('Fountain_Klinkers', (4.4, 30.0, 0.07), (-19.8, 1.0, 0.0), M['klinkers'], smooth=False)]
     for o in g:
         lib.box_uv(o, 2.0)
     stripes = []
-    for y in range(-13, 10, 3):
-        stripes.append(box('stripe', (4.4, 0.16, 0.02), (-9.8, y + 0.5, 0.04), M['stripe_brown'], smooth=False))
-    for x in (-11.2, -8.4):
-        stripes.append(box('stripe', (0.16, 24.0, 0.02), (x, -2.0, 0.04), M['stripe_brown'], smooth=False))
+    for y in range(-13, 16, 3):
+        stripes.append(box('stripe', (4.4, 0.16, 0.02), (-19.8, y + 0.5, 0.04), M['stripe_brown'], smooth=False))
+    for x in (-21.2, -18.4):
+        stripes.append(box('stripe', (0.16, 30.0, 0.02), (x, 1.0, 0.04), M['stripe_brown'], smooth=False))
     g.append(join(stripes, 'Ground_Stripes'))
     for o in g:
         lib.set_parent(o, groups['Ground'])
 
     # --- ahead: the gallery block with the corner tower on the left, its wing along the west street
-    galerij('Galerij', (-11.3, 20), (8.5, 20), (0, -1), floors=4, arcade=True,
+    galerij('Galerij', (-7.0, 20), (8.5, 20), (0, -1), floors=4, arcade=True, bay=3.9,
             flags=((0.3, 7.4), (0.75, 10.3)))
     # beyond the gallery's end: the red market road (x 8.5..16), then the gemeentehuis on the corner
     galerij('Road_W', (8.5, 35), (8.5, 60), (1, 0), depth=12, floors=3, arcade=False, brick='brick_red', shop_chance=0.5)
-    galerij('Road_E', (16, 17), (16, 60), (-1, 0), depth=12, floors=3, arcade=False, brick='brick_brown', shop_chance=0.5)
-    galerij('Cap_N', (0, 62), (25, 62), (0, -1), depth=10, floors=3, arcade=False, brick='brick_red', shop_chance=0.0)
-    corner_tower((-15.3, 23.9))
-    galerij('Galerij_West', (-19.6, 20), (-60, 20), (0, -1), depth=12, floors=4, arcade=False, flags=((0.2, 7.0),))
-    galerij('Street_W_S', (-12, 10), (-60, 10), (0, 1), depth=12, floors=3, arcade=False, brick='brick_red', shop_chance=0.5)
-    galerij('Cap_W', (-60, 10), (-60, 20), (1, 0), depth=10, floors=3, arcade=False, brick='brick_brown', shop_chance=0.0)
+    # a road east between the gemeentehuis and the apartments (y 16..23)
+    galerij('Road_E', (16, 23), (16, 60), (-1, 0), depth=12, floors=3, arcade=False, brick='brick_brown', shop_chance=0.5)
+    galerij('East_Road_S', (32.2, 16), (60, 16), (0, 1), depth=12, floors=3, arcade=False, brick='brick_red', shop_chance=0.4)
+    galerij('East_Road_N', (28.2, 23), (60, 23), (0, -1), depth=12, floors=3, arcade=False, brick='brick_red', shop_chance=0.4)
+    galerij('Cap_E', (60, 16), (60, 23), (-1, 0), depth=10, floors=3, arcade=False, brick='brick_brown', shop_chance=0.0)
+    galerij('Cap_N', (-30, 62), (25, 62), (0, -1), depth=10, floors=3, arcade=False, brick='brick_red', shop_chance=0.0)
+    # the gallery ends at the tower; then the red road (x -22..-15) and only then the shop row
+    corner_tower((-11.0, 23.9))
+    galerij('Road2_E', (-15, 29), (-15, 60), (-1, 0), depth=12, floors=4, arcade=False, brick='brick_orange', shop_chance=0.4)
+    galerij('Road2_W', (-22, 18), (-22, 60), (1, 0), depth=12, floors=3, arcade=False, brick='brick_red', shop_chance=0.5)
 
     # --- left: the shop row from the street photo (near -> far)
-    shop_house('Left_Eetcafe', (-12, -14), (-12, -5), (1, 0), 'grey_brick', ['EETCAFE GULLE GOZER', 'WAFELHUIS'],
+    shop_house('Left_Eetcafe', (-22, -14), (-22, -5), (1, 0), 'grey_brick', ['EETCAFE GULLE GOZER', 'WAFELHUIS'],
                frames='frame_white')
-    shop_house('Left_Kado', (-12, -5), (-12, 2), (1, 0), 'beige_grey', ['KADO KABINET'], wood_fascia=True, planters=True,
+    shop_house('Left_Kado', (-22, -5), (-22, 2), (1, 0), 'beige_grey', ['KADO KABINET'], wood_fascia=True, planters=True,
                frames='frame_white')
-    shop_house('Left_Optiek', (-12, 2), (-12, 10), (1, 0), 'brick_red', ['OUDE LAARS OPTIEK'], frames='frame_green',
+    shop_house('Left_Optiek', (-22, 2), (-22, 10), (1, 0), 'brick_red', ['OUDE LAARS OPTIEK'], frames='frame_green',
                eave=True, win_canopies=True, fascia='sign_black')
+    shop_house('Left_Fiets', (-22, 10), (-22, 16), (1, 0), 'brick_brown', ['FIETSENMAKER'], frames='frame_white')
 
     # --- behind: the modern block with the ijssalon you sit in front of
-    modern_block('IJssalon_Block', (16, -14), (-14, -14), (0, 1), floors=2, shops=('SCHOENEN', 'IJSSALON HENRI', 'KAPPER'),
-                 cone=True)
+    modern_block('IJssalon_Block', (4, -14), (-4, -14), (0, 1), floors=2, shops=('IJSSALON HENRI',), cone=True)
+    modern_block('South_Block_E', (16, -14), (4, -14), (0, 1), floors=2, shops=('SCHOENEN', 'KAPPER'))
+    modern_block('South_Block_W', (-4, -14), (-22, -14), (0, 1), floors=2, shops=('BAKKER', 'DROGIST', 'BLOEMEN'))
 
     # --- right: the gemeentehuis, the alley behind it, streets beyond
     gemeentehuis((16, -13), (16, 16), (-1, 0))
@@ -617,13 +624,13 @@ def build():
     bikes = [sq.prop_omafiets(f) for f in ('bike_black', 'bike_green', 'bike_blue', 'bike_red')]
     templates = [tree, binm, rack, table, chair, pbench, lamp] + list(parasols.values()) + bikes
 
-    for x, y, s in ((10.5, -11.4, 1.05), (-9.3, -12.0, 0.95)):
+    for x, y, s in ((10.5, -11.4, 1.05), (-9.3, -12.0, 0.95), (-14.5, -7.0, 1.0)):
         P(tree, (x, y, 0), rng.uniform(0, 6.28), s)
-    for x, y, rz in ((-8.0, 15.6, 0.0), (12.4, -12.6, 0.0)):
+    for x, y, rz in ((-5.5, 15.4, 0.0), (12.4, -12.6, 0.0), (-16.0, 12.5, math.pi / 2)):
         P(pbench, (x, y, 0), rz)
-    for x, y in ((-6.2, -10.0), (6.0, -10.0), (14.6, 4.0), (-8.6, 2.4)):
+    for x, y in ((-6.2, -10.0), (6.0, -10.0), (14.6, 4.0), (-18.6, 2.4)):
         P(binm, (x, y, 0))
-    for x, y in ((-8.3, -4.0), (-8.6, 7.0), (14.6, 1.0)):
+    for x, y in ((-18.3, -4.0), (-18.6, 7.0), (14.6, 1.0)):
         P(lamp, (x, y, 0))
     # bike parking in front of the ijssalon block
     for (x, y, rz) in ((5.6, -13.0, 0.0),):
@@ -634,9 +641,9 @@ def build():
                 P(rng.choice(bikes), (x + off.x, y + off.y, 0), rz + math.pi / 2 + rng.uniform(-0.08, 0.08))
 
     # the floor fountain and the big boulders (left)
-    ff = floor_fountain((-10.0, 2.0))
+    ff = floor_fountain((-20.0, 2.0))
     props.append(ff)
-    for k, (x, y, r) in enumerate(((-8.8, -6.0, 0.55), (-10.9, -8.7, 0.6), (-11.2, -3.6, 0.5), (-9.0, 8.0, 0.65))):
+    for k, (x, y, r) in enumerate(((-18.8, -6.0, 0.55), (-20.9, -8.7, 0.6), (-21.2, -3.6, 0.5), (-19.0, 8.0, 0.65))):
         b = boulder(f'Boulder_{k}', r, k)
         b.location = (x, y, 0)
         b.rotation_euler = (0, 0, rng.uniform(0, 6.28))
@@ -656,7 +663,7 @@ def build():
                 P(parasols[fabric], (c.x, c.y, 0), rng.uniform(0, 1))
 
     terrace(0, -10.9, 0.0, 5, 'fab_cream', skip=(2,))           # IJssalon Henri (the middle table is yours)
-    terrace(1.0, 17.5, 0.0, 7, 'fab_cream', skip=(3,), umbrellas=(0, 6))  # in front of the gallery, gap for riders
+    terrace(1.0, 17.5, 0.0, 7, 'fab_cream', skip=(2,), umbrellas=(0, 4, 6))  # in front of the gallery, gap for riders
     terrace(14.6, -7.5, math.pi / 2, 4, 'fab_black')             # gemeentehuis café, on your side of the square
 
     # the market on the red road between the gallery and the gemeentehuis, with a lane down the middle
@@ -666,7 +673,7 @@ def build():
     kinds = list(stalls)
     for j, y in enumerate((27.5, 31.0, 34.5, 38.0, 41.5)):
         P(stalls[kinds[j % 4]], (9.75, y, 0), math.pi / 2)
-    for j, y in enumerate((21.0, 24.5, 28.0, 31.5, 35.0, 38.5)):
+    for j, y in enumerate((26.5, 30.0, 33.5, 37.0, 40.5)):
         P(stalls[kinds[(j + 2) % 4]], (14.65, y, 0), -math.pi / 2)
     small = sq.prop_table(0.23, 'PlayerTableMesh')
     templates.append(small)
@@ -675,9 +682,9 @@ def build():
     props.append(instance(parasols['fab_cream'], 'Player_Parasol', (-1.1, -11.6, 0)))
 
     # hanging lamps across the square and some Koningsdag bunting
-    props.append(pendant_line((-12.0, 0.5, 6.6), (16.0, 0.5, 7.4), 3, name='LampLine_S'))
-    props.append(pendant_line((-12.0, 8.5, 6.6), (16.0, 8.5, 7.4), 3, name='LampLine_N'))
-    props.append(sq.bunting((-12.0, 9.6, 6.6), (16.0, 12.5, 7.2), 1.2, 'Bunting_N'))
+    props.append(pendant_line((-22.0, 0.5, 6.6), (16.0, 0.5, 7.4), 4, name='LampLine_S'))
+    props.append(pendant_line((-22.0, 8.5, 6.6), (16.0, 8.5, 7.4), 4, name='LampLine_N'))
+    props.append(sq.bunting((-22.0, 13.0, 6.6), (16.0, 12.5, 7.2), 1.4, 'Bunting_N'))
 
     for o in props:
         lib.set_parent(o, groups['Props'])
@@ -687,8 +694,8 @@ def build():
     # --- markers for the game (same names as the old square)
     markers = {
         'PlayerEye': (0, -11.55, 1.2),
-        'Spawn_West': (-56, 15, 0), 'Spawn_Markt': (12.2, 58, 0),
-        'Square_Center': (3, 3.5, 0),
+        'Spawn_West': (-18.5, 58, 0), 'Spawn_Markt': (12.2, 58, 0), 'Spawn_East': (56, 19.5, 0),
+        'Square_Center': (-1.5, 3.5, 0),
     }
     for name, loc in markers.items():
         lib.empty(name, loc, parent=groups['Markers'])
@@ -724,6 +731,7 @@ def main():
         ('04_look_right', eye, eye + V((10, 3, 0.3)), 22),
         ('05_gallery', (4.3, 10.0, 1.7), (-6, 21, 4.0), 24),
         ('06_in_arcade', (7.8, 22.0, 1.6), (-10, 22.0, 1.6), 22),
+        ('08_west_road', (-18.5, 12.0, 1.7), (-18.5, 40, 1.5), 22),
         ('07_market', (12.2, 15.0, 1.7), (12.2, 40, 1.5), 22),
     ]
     if 'one' in argv:

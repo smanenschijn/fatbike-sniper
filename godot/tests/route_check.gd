@@ -4,19 +4,25 @@ extends Node
 
 
 func _rects() -> Array:
-	var out = []  # Blender-coordinate rectangles [x0, x1, y0, y1, name], padded by half a bike width
-	var pitch = (8.5 + 11.3) / 4.0
+	var out = []  # Blender-coordinate rectangles [x0, x1, y0, y1, name]; see blender/build_dunant.py
+	var pitch = 15.5 / 4.0
 	for i in 5:
-		var x = clampf(-11.3 + i * pitch, -11.3 + 0.4, 8.5 - 0.4)
+		var x = clampf(-7.0 + i * pitch, -7.0 + 0.4, 8.5 - 0.4)
 		out.append([x - 0.4, x + 0.4, 20.0, 20.7, "pillar %d" % i])
 	for y in [27.5, 31.0, 34.5, 38.0, 41.5]:
 		out.append([8.75, 10.85, y - 1.6, y + 1.6, "stall W %.1f" % y])
-	for y in [21.0, 24.5, 28.0, 31.5, 35.0, 38.5]:
+	for y in [26.5, 30.0, 33.5, 37.0, 40.5]:
 		out.append([13.55, 15.75, y - 1.6, y + 1.6, "stall E %.1f" % y])
-	out.append([-11.3, 8.5, 23.4, 34.0, "gallery shops"])
-	out.append([-4.0, 8.5, 35.0, 60.0, "road W buildings"])
-	out.append([16.0, 28.0, 17.0, 60.0, "road E buildings"])
-	out.append([16.0, 40.0, -14.0, 16.0, "gemeentehuis"])
+	out.append([-7.0, 8.5, 23.4, 34.0, "gallery shops"])
+	out.append([-15.0, -7.0, 19.9, 28.0, "tower"])
+	out.append([-15.0, -3.0, 29.0, 60.0, "west road E buildings"])
+	out.append([-34.0, -22.0, -14.0, 60.0, "shop row / west road W buildings"])
+	out.append([-4.0, 8.5, 35.0, 60.0, "market road W buildings"])
+	out.append([16.0, 28.0, 23.0, 60.0, "market road E buildings"])
+	out.append([16.0, 32.0, -14.0, 16.0, "gemeentehuis"])
+	out.append([28.0, 60.0, 23.0, 35.0, "east road N buildings"])
+	out.append([32.0, 60.0, 4.0, 16.0, "east road S buildings"])
+	out.append([-22.0, 16.0, -26.0, -14.0, "ijssalon block"])
 	return out
 
 

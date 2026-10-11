@@ -48,15 +48,18 @@ static var MAPS := {
 	"donut": {
 		"label": "HENRI DONUTPLEIN", "sub": "Nijverdal: de galerij, het gemeentehuis en een ijsje bij Henri",
 		"model": "res://assets/models/dunant.glb", "legend": "Legende van het Donutplein",
-		"center": B(3, 3.5), "ring": 9.0, "tight_routes": true, "sun": Vector3(-0.55, 0.55, 0.62),
+		"center": B(-1.5, 3.5), "ring": 9.5, "tight_routes": true, "sun": Vector3(-0.55, 0.55, 0.62),
 		"entries": [
-			{"name": "west", "spawn": B(-56, 15), "mouth": B(-12.5, 15), "weight": 2.5},
+			# the red road between the tower and the shop row
+			{"name": "west", "spawn": B(-18.5, 58), "mouth": B(-18.5, 17), "weight": 2.5},
 			# down the market road, then left into the gallery and out through one of its arches
-			{"name": "galerij", "spawn": B(12.2, 58), "via": [B(12.2, 25.5), B(7.9, 22.1)], "mouth": B(1.1, 22.1), "weight": 3.0},
-			{"name": "markt", "spawn": B(12.2, 58), "mouth": B(12.2, 17), "weight": 2.5},
+			{"name": "galerij", "spawn": B(12.2, 58), "via": [B(12.2, 25.5), B(7.9, 22.1)], "mouth": B(-1.2, 22.1), "weight": 3.0},
+			{"name": "markt", "spawn": B(12.2, 58), "mouth": B(12.2, 17), "weight": 2.0},
+			# the road between the gemeentehuis and the apartments
+			{"name": "oost", "spawn": B(56, 19.5), "mouth": B(15.5, 19.5), "weight": 1.5},
 		],
 		"boss_spot": Vector3(0.0, 0, -10.0), "boss_x": Vector2(2.0, 6.0), "boss_z": Vector2(-11.5, -8.5),
-		"boss_entries": {"LegL": "markt", "LegR": "west", "Torso": "galerij", "ArmL": "markt", "ArmR": "west"},
+		"boss_entries": {"LegL": "oost", "LegR": "west", "Torso": "galerij", "ArmL": "markt", "ArmR": "west"},
 	},
 }
 const MAP_ORDER := ["pleintje", "donut"]
