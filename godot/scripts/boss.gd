@@ -8,9 +8,9 @@ extends Node3D
 
 signal player_hit(vel: Vector3, reason: String)
 
-const SPOT := Vector3(-6.0, 0, -10.0)
-const AREA_X := Vector2(5.0, 8.5)      # stays beside the fountain (|x| between these)
-const AREA_Z := Vector2(-11.5, -8.5)
+# Where he stands and roams (|x| within boss_x, z within boss_z) and where his bikes ride in from: per square.
+var SPOT: Vector3:
+	get: return Config.MAP.boss_spot
 const MODEL_SCALE := 1.3
 const BIKE_SCALE := 2.2
 const BIKES := ["LegL", "LegR", "Torso", "ArmL", "ArmR"]
@@ -19,7 +19,6 @@ const PART_NAMES := {"LegL": "LINKERBEEN", "LegR": "RECHTERBEEN", "Torso": "ROMP
 const BAR_NAMES := {"LegL": "BEEN L", "LegR": "BEEN R", "Torso": "ROMP", "ArmL": "ARM L", "ArmR": "RAKETARM", "Head": "HOOFD"}
 const TEAM := {"LegL": ["#1d2f55", "#7cff6b"], "LegR": ["#7a1820", "#f2f2f2"], "Torso": ["#24262b", "#ff7a1a"],
 	"ArmL": ["#243f2d", "#ffd23f"], "ArmR": ["#c9c9cf", "#ff3b6b"], "Head": ["#1f2227", "#e63946"]}
-const ENTRY_FOR := {"LegL": "east", "LegR": "west", "Torso": "north", "ArmL": "alleyE", "ArmR": "alleyNW"}
 const HP := {"bike": 14.0, "Head": 22.0}
 const SHOUTS := ["IK BEN FATBIKETRON!", "HET PLEIN IS VAN ONS!", "TRING TRING, STERVELING!", "GEEF DAT IJSJE!",
 	"FIETSPAD? IK BEN HET FIETSPAD!", "25 KM/U IS VOOR WATJES!"]
@@ -71,7 +70,7 @@ var _tip_t := 0.0
 
 # movement / animation
 var _yaw := 0.0
-var _target := SPOT
+var _target := Vector3.ZERO
 var _move_t := 0.0
 var _phase := 0.0
 var _moving := false
@@ -90,7 +89,7 @@ var _held_tyre: Node3D = null
 var _intro := {}
 var _bikes: Array = []
 var _assembly: Array = []
-var cam_focus := SPOT + Vector3(0, 3, 0)
+var cam_focus := Vector3(0, 3, -10)
 
 # dying
 var _die := {}
@@ -236,7 +235,7 @@ func start_intro() -> void:
 	cam_focus = SPOT + Vector3(0, 3, 0)
 	var i = 0
 	for k in BIKES:
-		var entry: Dictionary = Config.ENTRIES.filter(func(e): return e.name == ENTRY_FOR[k])[0]
+		var entry: Dictionary = Config.ENTRIES.filter(func(e): return e.name == Config.MAP.boss_entries[k])[0]
 		var col: Array = TEAM[k]
 		var bike: Node3D = riders.make_bike(col[0], col[1])
 		bike.scale = Vector3.ONE * BIKE_SCALE
@@ -244,7 +243,9 @@ func start_intro() -> void:
 		bike.visible = false
 		var a = PI / 2 + (i - 2) * 0.62  # gather on an arc in front of the spot
 		var gather = SPOT + Vector3(cos(a) * 6.0, 0, sin(a) * 6.0)
-		var pts: Array[Vector3] = [entry.spawn, entry.mouth, gather]
+		var pts: Array[Vector3] = [entry.spawn]
+		pts.append_array(entry.get("via", []))
+		pts.append_array([entry.mouth, gather])
 		_bikes.append({"part": k, "node": bike, "pts": pts, "d": 0.0, "start": 2.4 + i * 0.35, "speed": 21.0,
 			"arrived": false, "ang": a, "R": 6.0, "revved": false})
 		i += 1
@@ -511,8 +512,11 @@ func _step_fight(dt: float) -> void:
 	_move_t -= dt
 	if _move_t <= 0 and _attack.is_empty():
 		_move_t = randf_range(3.5, 6.0)
-		var side = signf(model.position.x) if randf() < 0.45 else -signf(model.position.x)
-		_target = Vector3(side * randf_range(AREA_X.x, AREA_X.y), 0, randf_range(AREA_Z.x, AREA_Z.y))
+		var here = signf(model.position.x) if absf(model.position.x) > 0.5 else (1.0 if randf() < 0.5 else -1.0)
+		var side = here if randf() < 0.45 else -here
+		var ax: Vector2 = Config.MAP.boss_x
+		var az: Vector2 = Config.MAP.boss_z
+		_target = Vector3(side * randf_range(ax.x, ax.y), 0, randf_range(az.x, az.y))
 	var to = _target - model.position
 	to.y = 0
 	_moving = to.length() > 0.3 and _attack.get("kind", "") != "rocket"

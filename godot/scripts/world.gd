@@ -1,8 +1,6 @@
 class_name World
 extends Node3D
-## The Dutch square: model, sky, sun, collision for shots, markers and the ice cream on the table.
-
-const SUN_DIR := Vector3(-0.8, 0.5, -0.33)
+## The square you play on (see Config.MAPS): model, sky, sun, collision for shots, markers and the ice cream on the table.
 
 var eye = Vector3(0, 1.2, 11.55)
 var env: Environment
@@ -15,13 +13,34 @@ var ijsje_fall := {}
 var _ijs_bits: Array = []
 
 
+var square: Node3D
+
+
 func _ready() -> void:
 	_build_environment()
-	var square: Node3D = load("res://assets/models/square.glb").instantiate()
+	ijsje = load("res://assets/models/ijsje.glb").instantiate()
+	add_child(ijsje)
+	ijsje.position = Config.B(-0.38, -11.0, 0.755)
+	_ijs_init.basis = ijsje.basis
+	_ijs_init.parts = []
+	for n in ["IJsje_Scoops", "IJsje_Topping"]:
+		var p = ijsje.find_child(n, true, false) as Node3D
+		if p:
+			_ijs_init.parts.append({"node": p, "parent": p.get_parent(), "xf": p.transform})
+	load_map()
+
+
+## (Re)load the square from Config.MAP: model, collision, the parasols at your table and the sun.
+func load_map() -> void:
+	if square:
+		remove_child(square)
+		square.queue_free()
+	square = load(Config.MAP.model).instantiate()
 	add_child(square)
 	var eye_node = square.find_child("PlayerEye", true, false)
 	if eye_node:
 		eye = (eye_node as Node3D).global_position
+	parasols.clear()
 	for pn in square.find_children("*Parasol*", "Node3D", true, false):
 		if (pn as Node3D).global_position.distance_to(Vector3(eye.x, 0, eye.z)) < 6.0:
 			parasols.append(pn)
@@ -35,16 +54,9 @@ func _ready() -> void:
 		if m.get_parent() and m.get_parent().name == "Player_Chair":
 			continue
 		m.create_trimesh_collision()
-
-	ijsje = load("res://assets/models/ijsje.glb").instantiate()
-	add_child(ijsje)
-	ijsje.position = Config.B(-0.38, -11.0, 0.755)
-	_ijs_init.basis = ijsje.basis
-	_ijs_init.parts = []
-	for n in ["IJsje_Scoops", "IJsje_Topping"]:
-		var p = ijsje.find_child(n, true, false) as Node3D
-		if p:
-			_ijs_init.parts.append({"node": p, "parent": p.get_parent(), "xf": p.transform})
+	sun.look_at_from_position((Config.MAP.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
+	if not ijsje_fall.is_empty():
+		reset_ijsje()
 
 
 func _build_environment() -> void:
@@ -84,7 +96,6 @@ func _build_environment() -> void:
 	sun.directional_shadow_max_distance = 70.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
-	sun.look_at_from_position(SUN_DIR.normalized() * 80.0, Vector3.ZERO, Vector3.UP)
 
 
 ## Nearest world hit along a ray: {"position", "normal"} or {}.

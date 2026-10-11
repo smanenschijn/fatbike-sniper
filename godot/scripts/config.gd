@@ -27,17 +27,56 @@ const BULLET_TIME := {"duration": 4.5, "scale": 0.2, "fill_kill": 0.2, "fill_hea
 const SCORE := {"kill": 100, "headshot": 50, "multi": 100, "knife": 150, "boss": 500, "wheelie_mul": 2,
 	"rocket": 200, "boss_hit": 10, "boss_part": 500, "boss_head": 2000, "boss_win": 5000, "boss_heart": 1000}
 
-const RING_RADIUS := 9.5
+## The playable squares. All share one frame: the player sits at B(0, -11.55) looking north (+Y in Blender).
+## center/ring: the loop riders circle; entries: where they come from (spawn -> optional via points -> mouth of the square);
+## boss: where FATBIKETRON stands and which entry each of his five bikes rides in from.
+static var MAPS := {
+	"pleintje": {
+		"label": "'T PLEINTJE", "sub": "Het oude dorpsplein met de kerk en de fontein",
+		"model": "res://assets/models/square.glb", "legend": "Legende van 't Pleintje",
+		"center": B(0, 3), "ring": 9.5, "sun": Vector3(-0.8, 0.5, -0.33),
+		"entries": [
+			{"name": "west", "spawn": B(-56, -4.5), "mouth": B(-21, -4.5), "weight": 3.0},
+			{"name": "east", "spawn": B(56, -4.5), "mouth": B(21, -4.5), "weight": 3.0},
+			{"name": "north", "spawn": B(0, 52), "mouth": B(0, 15), "weight": 3.0},
+			{"name": "alleyNW", "spawn": B(-13.25, 38), "mouth": B(-13.25, 15), "weight": 1.5},
+			{"name": "alleyE", "spawn": B(42, 7.25), "mouth": B(21, 7.25), "weight": 1.5},
+		],
+		"boss_spot": Vector3(-6.0, 0, -10.0), "boss_x": Vector2(5.0, 8.5), "boss_z": Vector2(-11.5, -8.5),
+		"boss_entries": {"LegL": "east", "LegR": "west", "Torso": "north", "ArmL": "alleyE", "ArmR": "alleyNW"},
+	},
+	"donut": {
+		"label": "HENRI DONUTPLEIN", "sub": "Nijverdal: de galerij, het gemeentehuis en een ijsje bij Henri",
+		"model": "res://assets/models/dunant.glb", "legend": "Legende van het Donutplein",
+		"center": B(3, 3.5), "ring": 9.0, "tight_routes": true, "sun": Vector3(-0.55, 0.55, 0.62),
+		"entries": [
+			{"name": "west", "spawn": B(-56, 15), "mouth": B(-12.5, 15), "weight": 2.5},
+			# down the market road, then left into the gallery and out through one of its arches
+			{"name": "galerij", "spawn": B(12.2, 58), "via": [B(12.2, 25.5), B(7.9, 22.1)], "mouth": B(1.1, 22.1), "weight": 3.0},
+			{"name": "markt", "spawn": B(12.2, 58), "mouth": B(12.2, 17), "weight": 2.5},
+		],
+		"boss_spot": Vector3(0.0, 0, -10.0), "boss_x": Vector2(2.0, 6.0), "boss_z": Vector2(-11.5, -8.5),
+		"boss_entries": {"LegL": "markt", "LegR": "west", "Torso": "galerij", "ArmL": "markt", "ArmR": "west"},
+	},
+}
+const MAP_ORDER := ["pleintje", "donut"]
+
+static var map_id := "pleintje"
+static var MAP: Dictionary = MAPS.pleintje
+static var RING_RADIUS := 9.5
 static var FOUNTAIN := B(0, 3)
 static var ATTACK_Z := B(0, -8.2).z
+static var ENTRIES: Array = MAPS.pleintje.entries
 
-static var ENTRIES := [
-	{"name": "west", "spawn": B(-56, -4.5), "mouth": B(-21, -4.5), "weight": 3.0},
-	{"name": "east", "spawn": B(56, -4.5), "mouth": B(21, -4.5), "weight": 3.0},
-	{"name": "north", "spawn": B(0, 52), "mouth": B(0, 15), "weight": 3.0},
-	{"name": "alleyNW", "spawn": B(-13.25, 38), "mouth": B(-13.25, 15), "weight": 1.5},
-	{"name": "alleyE", "spawn": B(42, 7.25), "mouth": B(21, 7.25), "weight": 1.5},
-]
+
+static func use_map(id: String) -> void:
+	if not MAPS.has(id):
+		id = "pleintje"
+	map_id = id
+	MAP = MAPS[id]
+	FOUNTAIN = MAP.center
+	RING_RADIUS = MAP.ring
+	ENTRIES = MAP.entries
 
 static func is_touch() -> bool:
 	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and not OS.has_feature("pc") or OS.get_cmdline_user_args().has("--touch")

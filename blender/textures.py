@@ -109,6 +109,15 @@ SPECS = {
                                      [srgb(c) for c in ('#c9a66b', '#d1b07a', '#bf9a60', '#c4a070')], srgb('#efe8da')),
     'roof_red': lambda r: roof_tiles(r, [srgb(c) for c in ('#b5512e', '#a94a2a', '#c05a33')]),
     'roof_dark': lambda r: roof_tiles(r, [srgb(c) for c in ('#3b3d42', '#34363a', '#43454a')]),
+    # Henri Dunantplein (Nijverdal): big grey slate-like slabs, salmon pavers, orange-red 90s brick
+    'slabs_grey': lambda r: bricks(r, 2.4, 0.6, 0.3, 0.006,
+                                   [srgb(c) for c in ('#6f7174', '#7b7d80', '#65676b', '#84858a', '#5d5f63')],
+                                   srgb('#4c4d50'), var=0.06, bevel=0.05),
+    'pavers_salmon': lambda r: bricks(r, 2.0, 0.2, 0.1, 0.006,
+                                      [srgb(c) for c in ('#c98a6c', '#d29878', '#bd7d60', '#d8a487', '#c48467')],
+                                      srgb('#a99683'), var=0.06, bevel=0.2, rotate=True),
+    'brick_orange': lambda r: bricks(r, 2.0, 0.2222, 0.0625, 0.011,
+                                     [srgb(c) for c in ('#b8562f', '#c4613a', '#a94d2b', '#bf5a33', '#ad5632')], srgb('#cbbfae')),
 }
 
 NORMAL_STRENGTH = {'roof_red': 6, 'roof_dark': 6}

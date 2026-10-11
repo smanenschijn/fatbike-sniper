@@ -268,7 +268,10 @@ func _weighted_entry(exclude) -> Dictionary:
 
 func _route(entry: Dictionary, exit: Dictionary, attack: bool) -> Dictionary:
 	var R = Config.RING_RADIUS + randf_range(-1.6, 1.6)
-	var pts: Array[Vector3] = [entry.spawn, entry.mouth]
+	var pts: Array[Vector3] = [entry.spawn]
+	pts.append_array(entry.get("via", []))
+	pts.append(entry.mouth)
+	var first_free = pts.size()  # points before this follow the street exactly
 	var dir = 1 if randf() < 0.5 else -1
 	var i = _nearest_ring(entry.mouth, R)
 	for s in 2 + randi() % 6:
@@ -293,8 +296,12 @@ func _route(entry: Dictionary, exit: Dictionary, attack: bool) -> Dictionary:
 		i += dir
 	pts.append(_ring_point(exit_node, R))
 	pts.append(exit.mouth)
+	var exit_via: Array = exit.get("via", []).duplicate()
+	exit_via.reverse()
+	pts.append_array(exit_via)
+	var last_free = pts.size() - exit_via.size()
 	pts.append(exit.spawn)
-	for k in range(2, pts.size() - 2):
+	for k in range(first_free, last_free - 1):
 		pts[k] += Vector3(randf_range(-0.6, 0.6), 0, randf_range(-0.6, 0.6))
 	# Catmull-Rom through the points as a bezier Curve3D
 	var curve = Curve3D.new()
@@ -303,6 +310,11 @@ func _route(entry: Dictionary, exit: Dictionary, attack: bool) -> Dictionary:
 		var prev = pts[maxi(k - 1, 0)]
 		var nxt = pts[mini(k + 1, pts.size() - 1)]
 		var tng = (nxt - prev) * 0.5 / 3.0
+		if Config.MAP.get("tight_routes", false) and k > 0 and k < pts.size() - 1:
+			# keep the curve from overshooting where a long street meets a short hop (e.g. out of the gallery)
+			var lim = minf(pts[k].distance_to(prev), pts[k].distance_to(nxt)) * 0.4
+			if tng.length() > lim:
+				tng = tng.normalized() * lim
 		curve.add_point(pts[k], -tng, tng)
 	return {"curve": curve, "attack_point": attack_point}
 

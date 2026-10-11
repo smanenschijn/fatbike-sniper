@@ -579,6 +579,44 @@ func _build_title() -> void:
 	var tag = _label("ZIT. RICHT. SCHIET. HOEVEEL KUN JIJ ER NEERHALEN?", 32, Color.WHITE, 6)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(tag)
+	# level select: one card per square
+	var maps = HBoxContainer.new()
+	maps.alignment = BoxContainer.ALIGNMENT_CENTER
+	maps.add_theme_constant_override("separation", 16)
+	_opt_buttons["map"] = []
+	for id in Config.MAP_ORDER:
+		var m: Dictionary = Config.MAPS[id]
+		var b = _button("", 22, true)
+		b.custom_minimum_size = Vector2(340, 88)
+		b.set_meta("card", true)
+		var bv = VBoxContainer.new()
+		bv.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bv.offset_left = 14
+		bv.offset_right = -14
+		bv.alignment = BoxContainer.ALIGNMENT_CENTER
+		bv.add_theme_constant_override("separation", 0)
+		bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var t = _label(m.label, 32, INK, 0)
+		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var sub = _label(m.sub, 13, Color("3a3530"), 0, true)
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		bv.add_child(t)
+		bv.add_child(sub)
+		b.add_child(bv)
+		b.set_meta("value", id)
+		b.pressed.connect(func(): option_changed.emit("map", id))
+		maps.add_child(b)
+		_opt_buttons["map"].append(b)
+	var mp = _panel()
+	mp.mouse_filter = Control.MOUSE_FILTER_PASS
+	var mh = HBoxContainer.new()
+	mh.add_theme_constant_override("separation", 14)
+	mh.add_child(_label("PLEIN", 22, YELLOW, 4))
+	mh.add_child(maps)
+	mp.add_child(mh)
+	mp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(mp)
 	var opts = HBoxContainer.new()
 	opts.alignment = BoxContainer.ALIGNMENT_CENTER
 	opts.add_theme_constant_override("separation", 16)
@@ -644,6 +682,9 @@ func sync_options(settings: Dictionary) -> void:
 		for b in _opt_buttons[key]:
 			var on: bool = b.get_meta("value") == settings[key]
 			b.modulate = Color(1, 1, 1, 1) if on else Color(1, 1, 1, 0.55)
+			if b.has_meta("card"):
+				for st in ["normal", "hover", "focus"]:
+					(b.get_theme_stylebox(st) as StyleBoxFlat).bg_color = YELLOW if on else Color("fff8ea")
 			b.add_theme_color_override("font_color", ORANGE.darkened(0.3) if on else INK)
 
 

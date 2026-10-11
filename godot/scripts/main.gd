@@ -41,7 +41,7 @@ var game: Game
 var camera: Camera3D
 var inp := InputState.new()
 var mode := "title"  # title | playing | paused | ended
-var settings := {"round_time": 60, "level": "normal", "boss": true}
+var settings := {"round_time": 60, "level": "normal", "boss": true, "map": "pleintje"}
 var touch := false
 var demo_t := 0.0
 var last_score := {}
@@ -58,6 +58,10 @@ var _post_t := 0.0
 func _ready() -> void:
 	touch = Config.is_touch()
 	_load_settings()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--map="):
+			settings.map = a.substr(6)
+	Config.use_map(settings.map)
 	world = World.new()
 	add_child(world)
 	camera = Camera3D.new()
@@ -185,14 +189,18 @@ func _rank(score: float) -> String:
 	if score < 1200: return "Buurtwacht"
 	if score < 2500: return "Fatbike Verdelger"
 	if score < 4500: return "Schrik van het Plein"
-	return "Legende van 't Pleintje"
+	return Config.MAP.legend
 
 
 func _mode_label() -> String:
-	return "%d min · %s%s" % [settings.round_time / 60, Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
+	return "%s · %d min · %s%s" % [Config.MAP.label, settings.round_time / 60, Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 
 
 func _on_option(key: String, value) -> void:
+	if key == "map" and value != settings.map:
+		Config.use_map(value)
+		riders.clear()
+		world.load_map()
 	settings[key] = value
 	_save_settings()
 	Sfx.click()
@@ -202,9 +210,11 @@ func _on_option(key: String, value) -> void:
 
 # ------------------------------------------------------------ persistence
 
-## Separate hall of fame with and without the end boss (the boss is worth a lot of points).
+## Separate hall of fame per square and with/without the end boss (the boss is worth a lot of points).
+## The original square keeps its old keys so existing scores stay.
 func _mode_key() -> String:
-	return "%d_%s%s" % [settings.round_time, settings.level, "" if settings.boss else "_noboss"]
+	var prefix = "" if settings.map == "pleintje" else settings.map + "_"
+	return "%s%d_%s%s" % [prefix, settings.round_time, settings.level, "" if settings.boss else "_noboss"]
 
 
 func _load_scores() -> Array:
@@ -246,6 +256,9 @@ func _load_settings() -> void:
 		if Config.LEVELS.has(lv):
 			settings.level = lv
 		settings.boss = bool(cfg.get_value("round", "boss", true))
+		var mp = cfg.get_value("round", "map", "pleintje")
+		if Config.MAPS.has(mp):
+			settings.map = mp
 
 
 func _save_settings() -> void:
@@ -254,6 +267,7 @@ func _save_settings() -> void:
 	cfg.set_value("round", "round_time", settings.round_time)
 	cfg.set_value("round", "level", settings.level)
 	cfg.set_value("round", "boss", settings.boss)
+	cfg.set_value("round", "map", settings.map)
 	cfg.save(SETTINGS_FILE)
 
 

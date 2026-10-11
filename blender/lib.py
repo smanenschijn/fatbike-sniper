@@ -408,6 +408,8 @@ def box_uv(o, tile=2.0):
     bpy.context.view_layer.update()
     me = o.data
     uv = me.uv_layers.get('UVMap') or me.uv_layers.new(name='UVMap')
+    me.uv_layers.active = uv  # a joined mesh can end up without an active layer (renders/exports unmapped)
+    uv.active_render = True
     mw = o.matrix_world
     nm = mw.to_3x3()
     verts = me.vertices
