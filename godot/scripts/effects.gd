@@ -170,6 +170,16 @@ func puff(pos: Vector3, col := Color("d8d0c0"), n := 5, size := 0.6) -> void:
 			Vector3(randf_range(-0.75, 0.75), randf_range(0.5, 1.5), randf_range(-0.75, 0.75)), randf_range(0.6, 1.1), 2.2, 0.0, 0.92)
 
 
+## A scoop of ice cream goes splat: blobs in its flavour and a little frosty cloud.
+func splat(pos: Vector3, col: Color, big := false) -> void:
+	for i in (6 if big else 3):
+		var c := col
+		c.a = 0.95
+		_spawn("puff", c, randf_range(0.1, 0.22) * (1.3 if big else 1.0), pos,
+			Vector3(randf_range(-2.2, 2.2), randf_range(0.8, 3.2), randf_range(-2.2, 2.2)), randf_range(0.35, 0.6), 0.8, 9.0, 0.97)
+	_spawn("puff", Color(0.88, 0.96, 1.0, 0.5), 0.4 if big else 0.2, pos, Vector3(0, 0.4, 0), 0.45, 1.8)
+
+
 func muzzle_flash(pos: Vector3, size := 0.5) -> void:
 	_spawn("flash", Color(1, 1, 1, 1), size, pos, Vector3.ZERO, 0.06, 1.4)
 	flash_light(pos, Color("ffcc66"), 4.0, 0.07)

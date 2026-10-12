@@ -446,6 +446,9 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			var to: Vector3 = (r.root as Node3D).position - Vector3(player_eye.x, 0, player_eye.z)
 			if to.length() < r.attack_near and to.dot(player_fwd) > 3.0 and sees_player(r):
 				start_windup(r, randf() < settings.accuracy)
+		if r.get("freeze", 0.0) > 0.0:   # brain freeze
+			r.freeze -= dt
+			speed *= 0.4
 		if r.get("windup", 0.0) > 0.0:  # winding up for a throw: slow down, then let go
 			speed *= 0.5
 			r.windup -= dt
@@ -520,10 +523,12 @@ func in_radius(center: Vector3, radius: float) -> Array:
 
 # ------------------------------------------------------------ damage / slapstick
 
-func damage(r: Dictionary, amount: float, dir: Vector3, power: float) -> bool:
+func damage(r: Dictionary, amount: float, dir: Vector3, power: float, shout := true) -> bool:
 	if not r.alive:
 		return false
 	r.hp -= amount
+	if r.hp > 0 and not shout:
+		return false
 	if r.hp > 0:
 		var lines = Config.PAIN_SHOUTS.duplicate()
 		if r.type == "boss":
@@ -532,6 +537,29 @@ func damage(r: Dictionary, amount: float, dir: Vector3, power: float) -> bool:
 		return false
 	knock_off(r, dir, power, false)
 	return true
+
+
+const FREEZE_SHOUTS := ["BREINVRIES!", "BRRRR!", "KOUD, KOUD, KOUD!", "AAH, MIJN HOOFD!", "IJSKOUD!", "Is dit aardbei?!"]
+
+
+## Hit by a scoop of ice cream: brain freeze (slow for a moment) and the scoop sticks where it landed.
+func freeze(r: Dictionary, point: Vector3, col: Color, scoop: Node3D) -> void:
+	if not r.alive:
+		scoop.queue_free()
+		return
+	if r.get("freeze", 0.0) <= 0.0 and r.hp > 0.5:   # don't shout when this scoop knocks him off anyway
+		effects.bubble(r.root, Vector3(0, 2.9, 0), FREEZE_SHOUTS.pick_random(), false, 1.2)
+	r.freeze = 1.4
+	var stuck: Array = r.get("stuck", [])
+	if stuck.size() >= 5:
+		scoop.queue_free()
+		return
+	var model: Node3D = r.model
+	model.add_child(scoop)
+	scoop.global_position = point
+	scoop.scale = Vector3(1.0, 0.7, 1.0)
+	stuck.append(scoop)
+	r.stuck = stuck
 
 
 func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> void:

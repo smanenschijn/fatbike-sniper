@@ -268,6 +268,8 @@ func fire_projectile(w: Dictionary, muzzle: Vector3, origin: Vector3, fwd: Vecto
 		for i in 2:
 			aim = base + rv * (aim.distance_to(muzzle) / p.speed)
 	var dir = (aim - muzzle).normalized()
+	if w.has("spread"):   # spray around the (lead-corrected) aim point
+		dir = Weapons._jitter(dir, w.spread)
 	var T = aim.distance_to(muzzle) / p.speed
 	var vel = dir * p.speed + Vector3(0, 0.5 * p.gravity * T, 0)
 	var node: Node3D
@@ -280,6 +282,13 @@ func fire_projectile(w: Dictionary, muzzle: Vector3, origin: Vector3, fwd: Vecto
 		node.add_child(rocket)
 		effects.puff(muzzle - fwd * 1.2, Color("cccccc"), 6, 0.8)
 		effects.flash_light(muzzle, Color("ffaa55"), 5.0, 0.1)
+	elif p.has("ice"):
+		var flavour: String = Weapons.ICE_FLAVOURS.pick_random()
+		node = _ice_scoop(flavour)
+		world.add_child(node)
+		node.global_position = muzzle
+		projectiles.append({"node": node, "vel": vel, "w": w, "age": 0.0, "trail": 0.0, "hit_any": false, "flavour": flavour})
+		return
 	else:
 		var mi = MeshInstance3D.new()
 		var sm = SphereMesh.new()
@@ -294,6 +303,32 @@ func fire_projectile(w: Dictionary, muzzle: Vector3, origin: Vector3, fwd: Vecto
 	world.add_child(node)
 	node.global_position = muzzle
 	projectiles.append({"node": node, "vel": vel, "w": w, "age": 0.0, "trail": 0.0, "hit_any": false})
+
+
+var _ice_mesh: SphereMesh
+var _ice_mats := {}
+
+
+## One scoop of ice cream (shared mesh, one material per flavour).
+func _ice_scoop(flavour: String) -> MeshInstance3D:
+	if _ice_mesh == null:
+		_ice_mesh = SphereMesh.new()
+		_ice_mesh.radius = 0.085
+		_ice_mesh.height = 0.15
+		_ice_mesh.radial_segments = 12
+		_ice_mesh.rings = 6
+	if not _ice_mats.has(flavour):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(flavour)
+		m.roughness = 0.6
+		m.rim_enabled = true
+		m.rim = 0.4
+		_ice_mats[flavour] = m
+	var mi := MeshInstance3D.new()
+	mi.mesh = _ice_mesh
+	mi.material_override = _ice_mats[flavour]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
 
 
 func _update_projectiles(dt: float) -> void:
@@ -335,8 +370,10 @@ func _update_projectiles(dt: float) -> void:
 		elif not bh.is_empty() and (rh.is_empty() or bh.t < rh[0].t):
 			if d.has("explode"):
 				_explode(bh.point, p)
-			elif _boss_hit(bh.part, d.damage, bh.point):
+			elif _boss_hit(bh.part, d.damage * d.get("boss_mul", 1.0), bh.point):
 				p.hit_any = true
+			if d.has("ice"):
+				_ice_splat(p, bh.point, true)
 			done = true
 		elif not rh.is_empty():
 			var h: Dictionary = rh[0]
@@ -346,13 +383,18 @@ func _update_projectiles(dt: float) -> void:
 				p.hit_any = true
 				hud.hit(h.part == "head")
 				Sfx.hit(h.part == "head")
-				if riders.damage(h.rider, d.damage, dir, 6.0):
+				if d.has("ice"):
+					_ice_splat(p, h.point, true)
+					riders.freeze(h.rider, h.point, Color(p.flavour), _ice_scoop(p.flavour))
+				if riders.damage(h.rider, d.damage, dir, 6.0, not d.has("ice")):
 					_score_kills([{"rider": h.rider, "head": h.part == "head", "point": h.point}])
 			done = true
 		elif not wh.is_empty() or next.y < 0 or p.age > 4.0:
 			var at: Vector3 = wh.position if not wh.is_empty() else next
 			if d.has("explode"):
 				_explode(at, p)
+			elif d.has("ice"):
+				_ice_splat(p, at, false)
 			else:
 				effects.puff(at, Color("b9a98f"), 3, 0.3)
 			done = true
@@ -363,6 +405,12 @@ func _update_projectiles(dt: float) -> void:
 				_after_shot(p.hit_any)
 		else:
 			node.global_position = next
+
+
+func _ice_splat(p: Dictionary, at: Vector3, hit: bool) -> void:
+	effects.splat(at, Color(p.flavour), hit)
+	if hit or randf() < 0.3:
+		Sfx.splat(at.distance_to(camera.global_position))
 
 
 func _explode(point: Vector3, p: Dictionary) -> void:

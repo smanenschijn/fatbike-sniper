@@ -3,7 +3,7 @@ extends Node
 
 const NAMES := ["katapult", "shotgun", "sniper", "bazooka", "explosion", "hit", "hit_head", "knock_off", "bell", "whoosh",
 	"clank", "hurt", "click", "reload", "empty", "cheer", "tick", "go", "end", "bullet_in", "bullet_out", "ready", "warn",
-	"roar", "stomp", "rumble", "transform", "clank_heavy", "rocket", "rev", "launch", "firework"]
+	"roar", "stomp", "rumble", "transform", "clank_heavy", "rocket", "rev", "launch", "firework", "ijsmachine", "splat"]
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -71,7 +71,8 @@ func play(n: String, volume_db := 0.0, pitch := 1.0) -> void:
 
 # ------------------------------------------------------------ named helpers (mirror src/audio.js)
 
-func shot(kind: String) -> void: play(kind)
+func shot(kind: String) -> void: play(kind, -5.0 if kind == "ijsmachine" else 0.0, randf_range(0.9, 1.15) if kind == "ijsmachine" else 1.0)
+func splat(dist := 10.0) -> void: play("splat", clampf(-3.0 - dist / 10.0, -12.0, -3.0), randf_range(0.85, 1.2))
 func explosion(dist := 10.0) -> void: play("explosion", clampf(-dist / 8.0, -10.0, 2.0))
 func hit(head := false) -> void: play("hit_head" if head else "hit")
 func knock_off() -> void: play("knock_off", -2.0)

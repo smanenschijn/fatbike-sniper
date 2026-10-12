@@ -15,15 +15,16 @@ Je zit op een terras in een Hollandse winkelstraat met een ijsje, tot de fatbike
 - **3 hartjes**: een fatbiker die een mes gooit en raakt kost een hartje. Bij 0 hartjes ben je game over, ook als de minuut nog niet om is
 - Je ijsje staat op het tafeltje in beeld en valt om bij een treffer
 
-## Wapens (vrij wisselen met 1–4 / scrollwiel)
+## Wapens (vrij wisselen met 1–5 / scrollwiel)
 | Wapen | Rol | Schot |
 |---|---|---|
 | Katapult | Oneindige munitie, stil, de basis | Projectiel met boogbaan |
 | Shotgun | Brede spreiding, sterk dichtbij, zwak op afstand | Hitscan-hagel |
 | Sniper rifle | Rechtermuisknop = scope/zoom, schiet door meerdere fatbikers op een rij | Hitscan |
 | Bazooka | Schaarse raketten, lang herladen, grote explosie | Projectiel |
+| IJSMACHINE | Machinegeweer dat ijsbolletjes afvuurt: vasthouden, de lopen spinnen op tot ~13 bolletjes/s, bak van 60. Eén bolletje geeft breinvries (fatbiker remt af, bolletje blijft plakken), twee = van de fiets | Projectiel, volautomatisch |
 
-Richten is arcade: directe treffers, behalve bij de katapult en de bazooka.
+Richten is arcade: directe treffers, behalve bij de katapult, de bazooka en de ijsmachine.
 
 ## Fatbikers
 - Een **gemengd gezelschap**: de fatbike is de rode draad, de rijders zijn divers. 12 typen (zie `VARIANTS` in `blender/build_riders.py`): mannen en vrouwen van tiener tot opa/oma, met broccolikapsel, pet, knot, paardenstaart, staartjes, bob, krullen of kaal; trainingspak, t-shirt, tanktop, polo of vest; korte broek, spijkerbroek, legging of rok; sneakers, sokken in sandalen of oma-schoenen; oma heeft een mand met stokbrood

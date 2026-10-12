@@ -682,8 +682,8 @@ func _build_title() -> void:
 	var cards = HBoxContainer.new()
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 16)
-	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
-		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-4 of scrollwiel: wapen wisselen\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
+	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier (vasthouden\nvoor de IJSMACHINE)\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
+		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-5 of scrollwiel: wapen wisselen\nIJSMACHINE: knop ingedrukt houden\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
 	cards.add_child(_card("BESTURING", controls))
 	cards.add_child(_card("AVONTUUR", "Overleef 1 minuut op 't Pleintje,\nloop dan met je ijsje door de stad\nnaar het Henri Donutplein.\nOnderweg: hinderlagen bij de brug\nen in de speeltuin. Daar: nieuw ijsje\nen nog 1 minuut (+ eindbaas)."))
 	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)\nFATBIKETRON: fiets eraf +500, winst +5000"))
@@ -916,6 +916,14 @@ class Crosshair extends Control:
 			draw_arc(Vector2.ZERO, 34, 0, TAU, 48, ink, 6)
 			draw_arc(Vector2.ZERO, 34, 0, TAU, 48, Color.WHITE, 3)
 			draw_circle(Vector2.ZERO, 4, Color.WHITE)
+			return
+		if mode == "ijsmachine":
+			draw_arc(Vector2.ZERO, 22, 0, TAU, 40, ink, 6)
+			draw_arc(Vector2.ZERO, 22, 0, TAU, 40, Color("ff8fb8"), 3)
+			for i in 6:
+				var a = float(i) / 6.0 * TAU
+				draw_circle(Vector2(cos(a), sin(a)) * 22, 4, Color("fff1d0"))
+			draw_circle(Vector2.ZERO, 3, Color.WHITE)
 			return
 		if mode == "bazooka":
 			for i in 12:

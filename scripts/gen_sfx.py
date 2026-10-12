@@ -103,6 +103,11 @@ SOUNDS = {
     'sniper': (1.1, [(0, noise(0.08, 'highpass', 1500, gain=1.0)), (0, noise(0.9, 'lowpass', 1200, 200, gain=0.6, attack=0.01)),
                      (0, tone(90, 0.3, 'sine', 35, 0.8)), (0.55, noise(0.04, 'highpass', 4000, gain=0.3))]),
     'bazooka': (1.0, [(0, noise(0.9, 'bandpass', 400, 2500, 1.2, 0.9, 0.02)), (0, tone(70, 0.4, 'sine', 30, 0.8))]),
+    # ice cream machine gun: a hollow "thup" per scoop plus a whirr of the barrels; a wet splat on impact
+    'ijsmachine': (0.16, [(0, tone(420, 0.09, 'sine', 140, 0.6)), (0, noise(0.05, 'bandpass', 900, 400, 1.5, 0.5)),
+                          (0, tone(1200, 0.12, 'square', 1100, 0.04))]),
+    'splat': (0.3, [(0, noise(0.22, 'lowpass', 1800, 250, gain=0.8, attack=0.004)), (0, tone(180, 0.12, 'sine', 70, 0.4)),
+                    (0.02, noise(0.08, 'bandpass', 2400, 900, 3, 0.25))]),
     'explosion': (1.8, [(0, noise(1.6, 'lowpass', 900, 60, gain=1.2)), (0, tone(65, 1.0, 'sine', 25, 1.0)), (0, noise(0.3, 'highpass', 2000, gain=0.4))]),
     'hit': (0.25, [(0, tone(320, 0.14, 'square', 90, 0.18)), (0, noise(0.06, 'bandpass', 1200, gain=0.4))]),
     'hit_head': (0.35, [(0, tone(320, 0.14, 'square', 90, 0.18)), (0, noise(0.06, 'bandpass', 1200, gain=0.4)), (0.03, tone(1760, 0.25, 'triangle', None, 0.25))]),

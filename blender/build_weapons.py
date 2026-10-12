@@ -63,6 +63,14 @@ def make_materials():
         'umbrella_b': material('UmbrellaTeal', '#1fc2b8', rough=0.6),
         'spoon': material('Spoon', '#d8dade', rough=0.15, metal=1.0),
         'stem': material('CherryStem', '#5a7a2a', rough=0.7),
+        # ice cream machine gun
+        'mint': material('IceMint', '#8fdcc0', rough=0.35, coat=0.6),
+        'mint_dark': material('IceMintDark', '#5bb79a', rough=0.4, coat=0.4),
+        'pink': material('IcePink', '#ff7fae', rough=0.35, coat=0.6),
+        'cream_paint': material('IceCream', '#fff1d0', rough=0.4, coat=0.5),
+        'pistachio': material('Pistachio', '#a9d86e', rough=0.65, sss=0.2),
+        'lemon': material('Lemon', '#f8e36a', rough=0.65, sss=0.2),
+        'chrome': material('Chrome', '#d9dde3', rough=0.12, metal=1.0),
     })
     g = M['glass']
     b = next(n for n in g.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
@@ -284,12 +292,77 @@ def bazooka():
     return parts, hands
 
 
+def ijsmachine():
+    """A stubby six-barrel gatling in ice-cream-cart colours with a tub of scoops on top."""
+    Mi, Pk, Cr, Ch = M['mint'], M['pink'], M['cream_paint'], M['chrome']
+    axis_z = 0.0
+    hub = V((0.0, 0, axis_z))
+    rx = (0, math.pi / 2, 0)
+    body = [box('housing', (0.27, 0.12, 0.13), (0.0, 0, 0.005), Mi, bevel=0.025, segs=3),
+            box('housing_top', (0.2, 0.09, 0.03), (-0.01, 0, 0.075), M['mint_dark'], bevel=0.012),
+            cyl('motor', 0.05, 0.08, (-0.17, 0, 0.0), Pk, rot=rx, seg=28),
+            cyl('motor_cap', 0.042, 0.02, (-0.215, 0, 0.0), Ch, rot=rx, seg=28),
+            cyl('collar_rear', 0.064, 0.03, (0.15, 0, axis_z), Ch, rot=rx, seg=32)]
+    for i in range(3):  # cream stripes like an ice-cream van
+        body.append(box('stripe', (0.018, 0.122, 0.132), (-0.08 + i * 0.07, 0, 0.005), Cr, bevel=0.02, segs=2))
+    for i in range(5):  # cooling fins on the motor
+        body.append(torus('fin', 0.05, 0.006, (-0.2 + i * 0.016, 0, 0.0), M['mint_dark'], rot=rx, segU=28, segV=6))
+    # the tub on top and the chute feeding the gun
+    tub = lathe('tub', [(0.0, 0.0), (0.055, 0.0), (0.058, 0.004), (0.072, 0.07), (0.077, 0.074), (0.074, 0.078), (0.068, 0.012), (0.0, 0.012)],
+                Cr, seg=40)
+    tub.location = (-0.01, 0, 0.095)
+    tub_parts = [tub, torus('tub_band', 0.066, 0.006, (-0.01, 0, 0.135), Pk, segU=40, segV=6),
+                 torus('tub_band2', 0.061, 0.004, (-0.01, 0, 0.115), Pk, segU=40, segV=6)]
+    body += tub_parts
+    # carry handle, pistol grip, trigger
+    body.append(tube('grip_mount', (-0.02, 0, -0.04), (0.04, 0, -0.06), 0.022, M['mint_dark'], seg=12))
+    body.append(capsule('pistol_grip', (0.02, 0, -0.07), (-0.01, 0, -0.17), 0.022, 0.024, Pk, sxy=(1.2, 0.9)))
+    body.append(torus('guard', 0.03, 0.005, (0.065, 0, -0.075), Ch, rot=(math.pi / 2, 0, 0), segU=16, segV=6, arc=(math.pi, 2 * math.pi)))
+    body.append(box('trigger', (0.008, 0.01, 0.03), (0.065, 0, -0.085), Ch))
+    # front support collar (doesn't spin) with a vertical grip under it
+    body.append(cyl('collar_front', 0.062, 0.035, (0.42, 0, axis_z), Pk, rot=rx, seg=32))
+    body.append(tube('fgrip_mount', (0.42, 0, -0.055), (0.42, 0, -0.075), 0.02, Ch, seg=12))
+    body.append(capsule('front_grip', (0.42, 0, -0.08), (0.42, 0, -0.17), 0.022, 0.022, Pk))
+    body.append(text_mesh('stencil', 'IJSKOUD!', 0.032, (0.0, 0.0612, 0.0), rot=(math.pi / 2, 0, math.pi), mat=Pk, extrude=0.002))
+    body.append(text_mesh('stencil2', 'IJSKOUD!', 0.032, (0.0, -0.0612, 0.0), mat=Pk, extrude=0.002))
+    # the scoops heaped in the tub (hidden when the gun is empty)
+    scoops = []
+    flav = ['strawberry', 'vanilla', 'chocolate', 'pistachio', 'lemon', 'strawberry', 'pistachio']
+    spots = [(0.025, 0.02, 0.172), (-0.03, 0.025, 0.17), (0.0, -0.03, 0.17), (-0.04, -0.02, 0.168), (0.035, -0.022, 0.168),
+             (0.0, 0.005, 0.2), (-0.015, 0.0, 0.205)]
+    for (x, y, z), m in zip(spots, flav):
+        scoops.append(sphere('scoop', 0.032, (x - 0.01, y, z), M[m], scale=(1, 1, 0.9), seg=20, rings=10))
+        scoops.append(torus('scoop_rim', 0.029, 0.007, (x - 0.01, y, z - 0.011), M[m], segU=18, segV=6))
+    scoops.append(sphere('cherry', 0.012, (-0.025, 0.0, 0.238), M['cherry'], seg=14, rings=7))
+    K, pivot = 0.75, V((-0.01, 0, 0.09))  # a smaller tub keeps the view clear
+    for o in tub_parts + scoops:
+        o.location = pivot + (V(o.location) - pivot) * K
+        o.scale = V(o.scale) * K
+    # the spinning barrels (origin on the spin axis)
+    barrels = [cyl('spindle', 0.014, 0.5, (0.4, 0, axis_z), Ch, rot=rx, seg=16),
+               cyl('plate_rear', 0.05, 0.012, (0.18, 0, axis_z), Ch, rot=rx, seg=6),
+               cyl('plate_mid', 0.048, 0.012, (0.5, 0, axis_z), Pk, rot=rx, seg=6),
+               cyl('plate_front', 0.05, 0.014, (0.62, 0, axis_z), Ch, rot=rx, seg=6)]
+    mats = ['strawberry', 'vanilla', 'chocolate', 'pistachio', 'lemon', 'vanilla']
+    for i in range(6):
+        a = i * math.pi / 3
+        y, z = math.cos(a) * 0.034, axis_z + math.sin(a) * 0.034
+        barrels.append(cyl('barrel', 0.013, 0.47, (0.405, y, z), M['steel_light'], rot=rx, seg=14))
+        barrels.append(cyl('muzzle', 0.016, 0.03, (0.64, y, z), M[mats[i]], rot=rx, seg=14))
+        barrels.append(cyl('bore', 0.009, 0.032, (0.641, y, z), M['black'], rot=rx, seg=12))
+    parts = {'IJs_Body': body, 'IJs_Scoops': (scoops, V((-0.01, 0, 0.12))), 'IJs_Barrels': (barrels, hub)}
+    hands = (grip_hand((0.005, 0, -0.12), (-0.25, 0, -1), (0, -1, 0), 0.024, (1, 0, 0), (-0.16, -0.24, -0.42))
+             + grip_hand((0.42, 0, -0.125), (0, 0, -1), (0, 1, 0), 0.022, (1, 0, 0), (0.2, 0.22, -0.44), watch=True))
+    return parts, hands
+
+
 # Viewmodel placement in camera space (camera looks +X): (location, rotation)
 VIEWMODELS = {
     'katapult': (katapult, (0.78, 0.03, -0.33), (0, 0.08, 0.0)),
     'shotgun': (shotgun, (0.46, -0.2, -0.25), (0, -0.02, 0.035)),
     'sniper': (sniper, (0.44, -0.18, -0.23), (0, -0.015, 0.03)),
     'bazooka': (bazooka, (0.02, -0.27, -0.11), (0, -0.01, 0.11)),
+    'ijsmachine': (ijsmachine, (0.52, -0.23, -0.26), (0, -0.04, 0.065)),
 }
 
 
@@ -298,7 +371,10 @@ def build_viewmodel(key):
     parts, hands = fn()
     root = lib.empty(f'VM_{key.capitalize()}')
     for name, objs in parts.items():
-        o = join(objs, name)
+        pivot = (0, 0, 0)
+        if isinstance(objs, tuple):
+            objs, pivot = objs
+        o = join(objs, name, pivot)
         lib.set_parent(o, root)
     arms = join(hands, f'{key.capitalize()}_Arms')
     subsurf(arms, 1)
@@ -390,15 +466,16 @@ def main():
     backdrop = box('Backdrop', (6, 0.02, 4), (0.6, 0.6, 0.6), material('Backdrop', '#1d1e24', rough=0.9))
     saved = {k: (r.location.copy(), r.rotation_euler.copy()) for k, r in roots.items()}
     layout = {'sniper': ((-0.2, 0, 1.25), (0, 0, 0)), 'bazooka': ((-0.15, 0, 0.85), (0, 0, 0)),
-              'shotgun': ((-0.25, 0, 0.45), (0, 0, 0)), 'katapult': ((1.15, 0, 0.42), (0, 0, math.pi / 2))}
+              'shotgun': ((-0.25, 0, 0.45), (0, 0, 0)), 'katapult': ((1.15, 0, 0.42), (0, 0, math.pi / 2)),
+              'ijsmachine': ((1.25, 0, 1.3), (0, 0, 0))}
     for k, (loc, rot) in layout.items():
         roots[k].location, roots[k].rotation_euler = loc, rot
         bpy.data.objects[f'{k.capitalize()}_Arms'].hide_render = True
     ice.location = (1.15, 0, 0.75)
     ice.scale = (2.2, 2.2, 2.2)
-    cam = lib.camera('Cam_sheet', (0.45, -3.2, 0.95), (0.45, 0, 0.9), 50)
+    cam = lib.camera('Cam_sheet', (0.6, -3.2, 0.95), (0.6, 0, 0.9), 50)
     cam.data.type = 'ORTHO'
-    cam.data.ortho_scale = 2.1
+    cam.data.ortho_scale = 2.6
     lib.render(scene, cam, os.path.join(rdir, '00_sheet.png'))
     backdrop.hide_render = True
     for k, r in roots.items():
@@ -431,11 +508,16 @@ def main():
     sun.rotation_euler = (math.radians(58), 0, math.radians(-40))
     sun.data.energy = 6.5
     bpy.data.objects['Fill'].hide_render = True
+    only = next((a.split('=', 1)[1] for a in argv if a.startswith('--only=')), None)
     for i, k in enumerate(VIEWMODELS):
+        if only and k != only:
+            continue
         for k2, r in roots.items():
             for o in [r] + list(r.children_recursive):
                 o.hide_render = (k2 != k)
         lib.render(scene, fpcam, os.path.join(rdir, f'{i + 1:02d}_fp_{k}.png'))
+    if only:
+        return
     rig.rotation_euler = (0, 0.55, math.pi / 2 + 0.5)  # glance down-left at the ice cream
     for r in roots.values():
         for o in [r] + list(r.children_recursive):

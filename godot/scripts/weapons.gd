@@ -17,7 +17,13 @@ var DEFS = [
 		"pellets": 1, "spread": 0.0, "range": 400.0, "damage": 3.0, "pierce": 6, "muzzle": Config.B(1.07, 0, 0.03), "kick": 1.2, "zoom": true},
 	{"key": "bazooka", "name": "BAZOOKA", "mag": 1, "reserve": 5, "fire_delay": 0.6, "reload": 2.4, "kind": "projectile",
 		"projectile": {"speed": 30.0, "gravity": 1.2, "radius": 0.2, "damage": 3.0, "explode": 5.0}, "muzzle": Config.B(0.95, 0, 0), "kick": 1.6},
+	# full auto: hold to spin the barrels up; a scoop slows (brain freeze), two knock a rider off
+	{"key": "ijsmachine", "name": "IJSMACHINE", "mag": 60, "reserve": -1, "fire_delay": 0.075, "slow_delay": 0.2, "reload": 2.2,
+		"kind": "projectile", "auto": true, "spread": 0.012, "burst": 7,
+		"projectile": {"speed": 58.0, "gravity": 5.0, "radius": 0.14, "damage": 0.5, "boss_mul": 0.5, "ice": true},
+		"muzzle": Config.B(0.66, 0, 0), "kick": 0.12},
 ]
+const ICE_FLAVOURS := ["f28fb0", "fbefc8", "6b3b22", "a9d86e", "f8e36a"]
 
 var camera: Camera3D
 var list: Array = []
@@ -28,6 +34,9 @@ var kick := 0.0
 var zoom := 0.0
 var time := 0.0
 var root: Node3D
+var spin := 0.0        # ijsmachine barrel speed 0..1
+var _burst_left := 0   # touch: a tap fires a short burst ...
+var _burst_dir := Vector3.ZERO   # ... at the tapped spot
 
 
 func setup(cam: Camera3D) -> void:
@@ -57,7 +66,8 @@ func setup(cam: Camera3D) -> void:
 		w.parts = {}
 		w.base = {}
 		for pair in [["pump", "Shotgun_Pump"], ["shell", "Shotgun_Shell"], ["bolt", "Sniper_Bolt"], ["rocket", "Bazooka_Rocket"],
-				["pouch", "Katapult_Pouch"], ["stone", "Katapult_Stone"], ["bands", "Katapult_Bands"]]:
+				["pouch", "Katapult_Pouch"], ["stone", "Katapult_Stone"], ["bands", "Katapult_Bands"],
+				["barrels", "IJs_Barrels"], ["scoops", "IJs_Scoops"]]:
 			var n = model.find_child(pair[1], true, false) as Node3D
 			if n:
 				w.parts[pair[0]] = n
@@ -81,6 +91,8 @@ func reset(rockets := 5) -> void:
 		w.anim = 0.0
 		if w.parts.has("rocket"):
 			w.parts.rocket.visible = true
+	spin = 0.0
+	_burst_left = 0
 	select(0, true)
 
 
@@ -94,6 +106,7 @@ func select(i: int, instant := false) -> void:
 	if i == index and not instant:
 		return
 	current().reloading = 0.0
+	_burst_left = 0
 	if instant:
 		for k in list.size():
 			list[k].holder.visible = k == i
@@ -129,18 +142,28 @@ func try_fire(inp) -> bool:
 		else:
 			empty_mag.emit()
 		return false
-	if not inp.fire_pressed and not inp.fire_down:
+	var auto: bool = w.get("auto", false)
+	if auto and inp.fire_pressed and not inp.fire_down:   # a touch tap: a short burst at the tapped spot
+		_burst_left = w.burst
+		_burst_dir = inp.aim_direction(camera)
+	var bursting: bool = auto and _burst_left > 0 and not inp.fire_down
+	if not inp.fire_pressed and not inp.fire_down and not bursting:
 		return false
-	if not inp.fire_pressed and w.key != "katapult":
+	if not inp.fire_pressed and not auto and w.key != "katapult":
 		return false
 	if w.mag >= 0:
 		w.ammo -= 1
 	w.cooldown = w.fire_delay
+	if auto:   # slow at first, full rate once the barrels have spun up
+		w.cooldown = lerpf(w.slow_delay, w.fire_delay, spin)
 	w.anim = 1.0
 	kick = minf(1.6, kick + w.kick)
 	Sfx.shot(w.key)
 	var origin = camera.global_position
 	var fwd: Vector3 = inp.aim_direction(camera)
+	if bursting:
+		_burst_left -= 1
+		fwd = _burst_dir
 	if w.kind == "hitscan":
 		var dirs = []
 		var spread: float = 0.0 if zoom > 0.5 else w.spread
@@ -152,7 +175,7 @@ func try_fire(inp) -> bool:
 		if w.parts.has("rocket"):
 			w.parts.rocket.visible = false
 	if w.mag >= 0 and w.ammo <= 0 and w.reserve_left != 0:
-		get_tree().create_timer(w.fire_delay * 0.6).timeout.connect(start_reload)
+		get_tree().create_timer(maxf(0.15, w.fire_delay * 0.6)).timeout.connect(start_reload)
 	return true
 
 
@@ -211,6 +234,19 @@ func step(dt: float, inp) -> void:
 	if w.has("offset"):
 		h.position += w.offset
 	h.rotation = Vector3(reload_dip * 0.5, 0, kick * 0.12 - lower * 0.6 - reload_dip * 0.25)
+
+	# ijsmachine: the barrels spin up while the trigger is held and wind down after
+	var spinning: bool = w.get("auto", false) and (inp.fire_down or _burst_left > 0) and w.reloading <= 0 and pending < 0 and w.ammo != 0
+	spin = clampf(spin + dt * (2.2 if spinning else -1.4), 0.0, 1.0)
+	if not w.get("auto", false):
+		_burst_left = 0
+	if w.parts.has("barrels"):
+		w.parts.barrels.rotate_object_local(Vector3.RIGHT, -dt * 38.0 * spin)
+		var full: float = clampf(float(w.ammo) / w.mag, 0.0, 1.0) if w.reloading <= 0 else 0.0
+		w.parts.scoops.visible = full > 0.0
+		w.parts.scoops.scale = Vector3(1, lerpf(0.45, 1.0, full), 1)
+		if spin > 0.05:   # a heavy gun rattles
+			h.position += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.0025 * spin
 
 	var a: float = w.anim
 	var p: Dictionary = w.parts

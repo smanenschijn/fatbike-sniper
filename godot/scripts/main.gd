@@ -453,6 +453,10 @@ func _parse_auto_args() -> void:
 			_auto.shots = Array(a.substr(8).split(",")).map(func(x): return float(x))
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
+		elif a.begins_with("--map="):   # pleintje | donut
+			settings.map = a.substr(6)
+		elif a.begins_with("--weapon="):   # start with this weapon (1 = katapult ... 5 = ijsmachine)
+			_auto.weapon = int(a.substr(9)) - 1
 	if _auto.has("shot"):
 		_auto.t = 0.0
 		_auto.wait = _auto.get("wait", 6.0)
@@ -464,6 +468,9 @@ func _auto_step(dt: float) -> void:
 	if not _auto.has("shot"):
 		return
 	_auto.t += dt
+	if _auto.has("weapon") and mode == "playing" and game.state == "playing":
+		weapons.select(_auto.weapon, true)
+		_auto.erase("weapon")
 	if _auto.get("god", false) and mode == "playing":
 		game.hearts = maxi(game.hearts, 2)
 	if _auto.has("phase") and game.state == "playing" and not _auto.has("phase_done"):
@@ -514,8 +521,12 @@ func _auto_step(dt: float) -> void:
 			var d = (t - world.eye).normalized()
 			inp.yaw = wrapf(atan2(-d.x, -d.z) - game.view_yaw, -PI, PI)
 			inp.pitch = asin(d.y)
-			if fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
+			if weapons.current().get("auto", false):
+				inp.fire_down = not _auto.get("knife", false)
+			elif fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
 				inp.fire_pressed = true
+		elif weapons.current().get("auto", false):
+			inp.fire_down = false
 	if _auto.get("knife", false) and game.state == "playing" and _auto.t > _auto.wait - 2.0 and not _auto.has("knife_done"):
 		_auto.knife_done = true
 		var near = riders.list.filter(func(r): return r.alive and (r.root as Node3D).position.distance_to(world.eye) < 30)
@@ -532,5 +543,5 @@ func _auto_step(dt: float) -> void:
 		_auto.erase("play")
 		var img = get_viewport().get_texture().get_image()
 		img.save_png(_auto.shot)
-		print("[auto] screenshot saved to ", _auto.shot, " riders=", riders.list.size(), " score=", game.score)
+		print("[auto] screenshot saved to ", _auto.shot, " riders=", riders.list.size(), " score=", game.score, " stats=", game.stats)
 		get_tree().quit()
