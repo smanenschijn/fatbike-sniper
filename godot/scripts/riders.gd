@@ -32,7 +32,10 @@ const VARIANT_META := {
 }
 
 var effects: Effects
+var world: World   # line-of-sight checks: riders only throw when they can see you, knives stop at walls
 var player_eye := Vector3.ZERO
+var player_vel := Vector3.ZERO   # the player walks in the adventure mode: knives lead the target
+var player_fwd := Vector3.FORWARD
 var settings := {"accuracy": 0.6, "windup": 0.75}
 var list: Array = []
 var knives: Array = []
@@ -285,7 +288,7 @@ func _route(entry: Dictionary, exit: Dictionary, attack: bool) -> Dictionary:
 				break
 			pts.append(_ring_point(i, R))
 			i += dir
-		attack_point = Vector3(randf_range(-3.5, 3.5), 0, Config.ATTACK_Z)
+		attack_point = Vector3(Config.OFFSET.x + randf_range(-3.5, 3.5), 0, Config.ATTACK_Z)
 		pts.append(attack_point)
 		i += dir
 	var exit_node = _nearest_ring(exit.mouth, R)
@@ -303,20 +306,24 @@ func _route(entry: Dictionary, exit: Dictionary, attack: bool) -> Dictionary:
 	pts.append(exit.spawn)
 	for k in range(first_free, last_free - 1):
 		pts[k] += Vector3(randf_range(-0.6, 0.6), 0, randf_range(-0.6, 0.6))
-	# Catmull-Rom through the points as a bezier Curve3D
+	return {"curve": smooth_curve(pts, Config.MAP.get("tight_routes", false)), "attack_point": attack_point}
+
+
+## Catmull-Rom through the points as a bezier Curve3D. `tight` keeps the curve from overshooting where a
+## long street meets a short hop (e.g. out of the gallery).
+static func smooth_curve(pts: Array, tight := false) -> Curve3D:
 	var curve = Curve3D.new()
 	curve.bake_interval = 0.25
 	for k in pts.size():
-		var prev = pts[maxi(k - 1, 0)]
-		var nxt = pts[mini(k + 1, pts.size() - 1)]
+		var prev: Vector3 = pts[maxi(k - 1, 0)]
+		var nxt: Vector3 = pts[mini(k + 1, pts.size() - 1)]
 		var tng = (nxt - prev) * 0.5 / 3.0
-		if Config.MAP.get("tight_routes", false) and k > 0 and k < pts.size() - 1:
-			# keep the curve from overshooting where a long street meets a short hop (e.g. out of the gallery)
+		if tight and k > 0 and k < pts.size() - 1:
 			var lim = minf(pts[k].distance_to(prev), pts[k].distance_to(nxt)) * 0.4
 			if tng.length() > lim:
 				tng = tng.normalized() * lim
 		curve.add_point(pts[k], -tng, tng)
-	return {"curve": curve, "attack_point": attack_point}
+	return curve
 
 
 # ------------------------------------------------------------ spawning / update
@@ -326,6 +333,30 @@ func spawn(type: String, diff: Dictionary) -> Dictionary:
 	var exit = _weighted_entry(entry)
 	var attack = (type == "normal" or type == "duo") and randf() < diff.attack_chance
 	var route = _route(entry, exit, attack)
+	return _spawn_on(type, route.curve, route.attack_point, diff.speed_mul)
+
+
+## A scripted rider (adventure mode): rides the given points (Godot coords). With `attack_near` > 0 it winds
+## up a throw once it gets that close to the (walking) player while in front of them and in sight.
+## hops: [[from, to, height]] jumps between two of the points.
+func spawn_path(type: String, pts: Array, speed_mul: float, attack_near := 0.0, hops := []) -> Dictionary:
+	var curve := smooth_curve(pts, true)
+	var r = _spawn_on(type, curve, null, speed_mul)
+	r.attack_near = attack_near if type != "wheelie" else 0.0
+	r.hops = hops.map(func(h): return [curve.get_closest_offset(h[0]), curve.get_closest_offset(h[1]), h[2]])
+	return r
+
+
+## Can this rider see the player (nothing solid between its head and the player's eye)?
+func sees_player(r: Dictionary) -> bool:
+	if world == null:
+		return true
+	var head: Vector3 = (r.root as Node3D).position + Vector3(0, 1.5, 0)
+	var to := head - player_eye
+	return world.raycast(player_eye, to.normalized(), maxf(0.0, to.length() - 0.7)).is_empty()
+
+
+func _spawn_on(type: String, curve: Curve3D, attack_point, speed_mul: float) -> Dictionary:
 	var m = _build(type)
 	var base: float = {"normal": randf_range(6.5, 8.8), "duo": randf_range(5.8, 7.0), "wheelie": randf_range(11, 13), "boss": randf_range(4.8, 5.6)}[type]
 	var spheres = DRIVER_SPHERES.duplicate()
@@ -336,8 +367,8 @@ func spawn(type: String, diff: Dictionary) -> Dictionary:
 		spheres.append([Vector3(-0.52, 1.02, 0), 0.32, "body", "driver"])
 	_next_id += 1
 	var r = m.merged({
-		"id": _next_id, "type": type, "curve": route.curve, "len": (route.curve as Curve3D).get_baked_length(), "dist": 0.0,
-		"speed": base * diff.speed_mul, "alive": true, "attack_point": route.attack_point, "thrown": false,
+		"id": _next_id, "type": type, "curve": curve, "len": curve.get_baked_length(), "dist": 0.0,
+		"speed": base * speed_mul, "alive": true, "attack_point": attack_point, "thrown": false, "attack_near": 0.0,
 		"knife_cooldown": randf_range(1, 3), "hp": 3 if type == "boss" else 1, "shout_timer": randf_range(1.5, 4),
 		"bell_timer": randf_range(2, 6), "yaw": 0.0, "roll": 0.0, "wheelie": 0.42 if type == "wheelie" else 0.0,
 		"bob": randf() * 10.0, "spheres": spheres,
@@ -359,7 +390,14 @@ func _place(r: Dictionary, dt: float) -> void:
 	if t.length() < 0.001:
 		t = Vector3(cos(r.yaw), 0, -sin(r.yaw))
 	var root: Node3D = r.root
-	root.position = Vector3(p.x, 0, p.z)
+	var hop_y := 0.0
+	var hop_pitch := 0.0
+	for h in r.get("hops", []):
+		if d >= h[0] and d <= h[1] and h[1] > h[0]:
+			var ht: float = (d - h[0]) / (h[1] - h[0])
+			hop_y = 4.0 * h[2] * ht * (1.0 - ht)
+			hop_pitch = 0.45 * (1.0 - 2.0 * ht)
+	root.position = Vector3(p.x, hop_y, p.z)
 	var yaw = atan2(-t.z, t.x)
 	var dy = wrapf(yaw - r.yaw, -PI, PI)
 	r.yaw = yaw
@@ -369,7 +407,7 @@ func _place(r: Dictionary, dt: float) -> void:
 		r.roll += (target_roll - r.roll) * minf(1.0, dt * 5.0)
 	r.bob += dt * r.speed * 1.3
 	var pivot: Node3D = r.pivot
-	pivot.rotation = Vector3(-r.roll, 0, r.wheelie + (sin(r.bob * 0.6) * 0.06 if r.wheelie > 0 else 0.0))
+	pivot.rotation = Vector3(-r.roll, 0, r.wheelie + hop_pitch + (sin(r.bob * 0.6) * 0.06 if r.wheelie > 0 else 0.0))
 	(r.model as Node3D).position.y = absf(sin(r.bob)) * 0.02
 	if r.boombox:
 		(r.boombox as Node3D).scale = Vector3.ONE * (1.0 + maxf(0.0, sin(Time.get_ticks_msec() * 0.0126)) * 0.12)
@@ -402,7 +440,11 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			var d = Vector2(r.root.position.x - ap.x, r.root.position.z - ap.z).length()
 			if d < 6:
 				speed *= 0.65
-			if d < 2.5:
+			if d < 2.5 and sees_player(r):
+				start_windup(r, randf() < settings.accuracy)
+		elif r.attack_near > 0.0 and not r.thrown and r.alive and (r.root as Node3D).position.y < 0.3:
+			var to: Vector3 = (r.root as Node3D).position - Vector3(player_eye.x, 0, player_eye.z)
+			if to.length() < r.attack_near and to.dot(player_fwd) > 3.0 and sees_player(r):
 				start_windup(r, randf() < settings.accuracy)
 		if r.get("windup", 0.0) > 0.0:  # winding up for a throw: slow down, then let go
 			speed *= 0.5
@@ -559,6 +601,8 @@ func _release_knife(r: Dictionary) -> void:
 func throw_knife(r: Dictionary, accurate: bool) -> void:
 	var from: Vector3 = (r.model as Node3D).global_transform * Vector3(0.25, 1.4, -0.25)
 	var target = player_eye
+	# lead a walking player: where will they be when the knife arrives?
+	target += player_vel * clampf(from.distance_to(target) / 12.0, 1.1, 2.2)
 	if accurate:
 		target += Vector3(randf_range(-0.15, 0.15), randf_range(-0.1, 0.1), 0)
 	else:
@@ -580,7 +624,7 @@ func throw_knife(r: Dictionary, accurate: bool) -> void:
 func retaliate() -> void:
 	if retaliate_cooldown > 0:
 		return
-	var cands = list.filter(func(r): return r.alive and r.knife_cooldown <= 0 and r.type != "wheelie" and (r.root as Node3D).position.distance_to(player_eye) < 42)
+	var cands = list.filter(func(r): return r.alive and r.knife_cooldown <= 0 and r.type != "wheelie" and (r.root as Node3D).position.distance_to(player_eye) < 42 and sees_player(r))
 	if cands.is_empty():
 		return
 	start_windup(cands.pick_random(), randf() < settings.accuracy - 0.05)
@@ -614,7 +658,16 @@ func _update_knives(dt: float) -> void:
 		var mesh: Node3D = k.mesh
 		k.age += dt
 		k.vel.y -= Config.GRAVITY * dt
-		mesh.global_position += k.vel * dt
+		var step: Vector3 = k.vel * dt
+		if world and k.age > 0.08:   # a wall or tree in the way: the knife clatters off it
+			var wh := world.raycast(mesh.global_position, step.normalized(), step.length())
+			if not wh.is_empty():
+				Sfx.clank()
+				effects.puff(wh.position, Color("fff0c0"), 3, 0.25)
+				mesh.queue_free()
+				knives.remove_at(i)
+				continue
+		mesh.global_position += step
 		mesh.rotate_object_local(Vector3(0, 0, 1), -k.spin * dt)
 		if mesh.global_position.distance_to(player_eye) < 0.6:
 			var v: Vector3 = k.vel
@@ -622,8 +675,10 @@ func _update_knives(dt: float) -> void:
 			knives.remove_at(i)
 			player_hit.emit(v)
 			continue
-		if mesh.global_position.y < 0.05 or k.age > 4 or mesh.global_position.z > player_eye.z + 3:
-			if mesh.global_position.z > player_eye.z - 1:
+		var flat_v := Vector3(k.vel.x, 0, k.vel.z).normalized()
+		var past: float = (mesh.global_position - player_eye).dot(flat_v)  # > 0 once it flew past the player
+		if mesh.global_position.y < 0.05 or k.age > 4 or past > 3.0:
+			if past > -1.0:
 				Sfx.clank()
 			mesh.queue_free()
 			knives.remove_at(i)

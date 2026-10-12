@@ -3,6 +3,7 @@ extends Node3D
 ## The square you play on (see Config.MAPS): model, sky, sun, collision for shots, markers and the ice cream on the table.
 
 var eye = Vector3(0, 1.2, 11.55)
+var seat = Vector3(0, 1.2, 11.55)   # PlayerEye of the loaded map (eye moves while walking in the adventure)
 var env: Environment
 var ijsje: Node3D
 var parasols: Array = []
@@ -14,6 +15,7 @@ var _ijs_bits: Array = []
 
 
 var square: Node3D
+var models := {}   # adventure world: frame id -> model (all three squares/streets loaded side by side)
 
 
 func _ready() -> void:
@@ -32,31 +34,86 @@ func _ready() -> void:
 
 ## (Re)load the square from Config.MAP: model, collision, the parasols at your table and the sun.
 func load_map() -> void:
-	if square:
-		remove_child(square)
-		square.queue_free()
-	square = load(Config.MAP.model).instantiate()
-	add_child(square)
-	var eye_node = square.find_child("PlayerEye", true, false)
-	if eye_node:
-		eye = (eye_node as Node3D).global_position
-	parasols.clear()
-	for pn in square.find_children("*Parasol*", "Node3D", true, false):
-		if (pn as Node3D).global_position.distance_to(Vector3(eye.x, 0, eye.z)) < 6.0:
-			parasols.append(pn)
-	var chair = square.find_child("Player_Chair", true, false)
-	if chair:
-		chair.queue_free()
-	# static collision for shots (trimesh per mesh)
-	for mi in square.find_children("*", "MeshInstance3D", true, false):
-		var m = mi as MeshInstance3D
-		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if m.get_parent() and m.get_parent().name == "Player_Chair":
-			continue
-		m.create_trimesh_collision()
+	_unload()
+	square = _instance(Config.MAP.model, Vector3.ZERO)
+	_sit_at(square)
 	sun.look_at_from_position((Config.MAP.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
 	if not ijsje_fall.is_empty():
 		reset_ijsje()
+
+
+func is_adventure() -> bool:
+	return not models.is_empty()
+
+
+## The adventure world: 't Pleintje, the streets and the Donutplein side by side (Config.ADVENTURE.frames),
+## with the houses that close off the squares' streets taken away so the walk runs straight through.
+func load_adventure() -> void:
+	_unload()
+	models.pleintje = _instance(Config.MAPS.pleintje.model, Config.AP("pleintje", [0, 0]))
+	models.route = _instance("res://assets/models/route.glb", Config.AP("route", [0, 0]))
+	models.donut = _instance(Config.MAPS.donut.model, Config.AP("donut", [0, 0]))
+	# 't Pleintje's north street is closed by a row at y = 56; the Donutplein's east road by "Cap_E"
+	for n in models.pleintje.find_children("StreetN_*", "Node3D", true, false):
+		var gp := (n as Node3D).global_position
+		if absf(gp.z + 56.0) < 0.5 and gp.x > -5.5 and gp.x < 5.5:
+			n.queue_free()
+	var cap = models.donut.find_child("Cap_E", true, false)
+	if cap:
+		cap.queue_free()
+	square = models.pleintje
+	_sit_at(square)
+	sun.look_at_from_position((Config.MAPS.pleintje.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
+	if not ijsje_fall.is_empty():
+		reset_ijsje()
+
+
+## Adventure: make this square the one you sit at (seat, parasols).
+func activate(id: String) -> void:
+	square = models[id]
+	_sit_at(square)
+
+
+func show_model(id: String, on: bool) -> void:
+	if models.has(id):
+		(models[id] as Node3D).visible = on
+
+
+func _unload() -> void:
+	for m in models.values():
+		remove_child(m)
+		m.queue_free()
+	if square and not models.values().has(square):
+		remove_child(square)
+		square.queue_free()
+	models.clear()
+	square = null
+
+
+func _instance(path: String, at: Vector3) -> Node3D:
+	var m: Node3D = load(path).instantiate()
+	m.position = at
+	add_child(m)
+	var chair = m.find_child("Player_Chair", true, false)
+	if chair:
+		chair.free()
+	# static collision for shots (trimesh per mesh)
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var mesh = mi as MeshInstance3D
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mesh.create_trimesh_collision()
+	return m
+
+
+func _sit_at(m: Node3D) -> void:
+	var eye_node = m.find_child("PlayerEye", true, false)
+	if eye_node:
+		eye = (eye_node as Node3D).global_position
+	seat = eye
+	parasols.clear()
+	for pn in m.find_children("*Parasol*", "Node3D", true, false):
+		if (pn as Node3D).global_position.distance_to(Vector3(eye.x, 0, eye.z)) < 6.0:
+			parasols.append(pn)
 
 
 func _build_environment() -> void:
@@ -125,6 +182,20 @@ func set_dusk(on: bool, secs := 1.5) -> void:
 	_dusk_tween.tween_property(env, "ambient_light_energy", 0.3 if on else 0.75, secs)
 	_dusk_tween.tween_property(sun, "light_energy", 0.35 if on else 2.2, secs)
 	_dusk_tween.tween_property(env, "fog_light_color", Color("1c2238") if on else Color("cfe0ee"), secs)
+
+
+## Adventure mode: carry the ice cream in your left hand while walking (holder = the camera), or put it back
+## on your table (holder = null).
+func hold_ijsje(holder: Node3D) -> void:
+	if holder:
+		if ijsje.get_parent() != holder:
+			ijsje.reparent(holder, false)
+		ijsje.position = Vector3(-0.33, -0.36, -0.62)
+	else:
+		if ijsje.get_parent() != self:
+			ijsje.reparent(self, false)
+		ijsje.position = seat + Vector3(-0.38, -0.445, -0.55)   # on your table
+	ijsje.basis = _ijs_init.basis.scaled(Vector3.ONE * (0.7 if holder else 1.0))
 
 
 func knock_over_ijsje(from_dir: Vector3) -> void:

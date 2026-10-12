@@ -33,6 +33,12 @@ var _round_id := 0
 var _tip_t := 0.0
 var boss_on := true
 var _show := {}   # fireworks show: {t, next, launched}
+# adventure mode: square1 -> walk_out -> route -> walk_in -> square2 (then the boss or fireworks)
+var adventure := false
+var phase := ""
+var rail: Rail
+var view_yaw := 0.0   # the walking direction; the player's own look (inp.yaw) is relative to it
+var _marks := {}      # distances along the walk where things change (see _start_walk)
 
 const NO_SPAWN := {"spawn_interval": 99.0, "max_alive": 0, "attack_chance": 0.0, "speed_mul": 1.0}
 
@@ -55,8 +61,29 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	boss.player_hit.connect(on_player_hit)
 
 
-func reset(p_round_time: float, p_level: String, p_boss := true) -> void:
+func reset(p_round_time: float, p_level: String, p_boss := true, p_adventure := false) -> void:
 	boss_on = p_boss
+	adventure = p_adventure
+	phase = "square1" if adventure else ""
+	rail = null
+	view_yaw = 0.0
+	riders.clear()
+	effects.clear()
+	effects.water = []
+	if adventure:
+		p_round_time = Config.ADVENTURE.square_time
+		Config.use_map("pleintje")
+		world.load_adventure()   # the whole walk lives in one world, no loading on the way
+		var w: Array = Config.ADVENTURE.water
+		var a := Config.AP(w[0], [w[1][0], w[1][1]])
+		var b := Config.AP(w[0], [w[1][2], w[1][3]])
+		effects.water = [[Rect2(Vector2(minf(a.x, b.x), minf(a.z, b.z)), Vector2(absf(b.x - a.x), absf(b.z - a.z))), w[2]]]
+		world.show_model("donut", false)
+	elif world.is_adventure():
+		world.load_map()
+	world.hold_ijsje(null)
+	hud.fade(0.0, 0.01)
+	_set_player(world.seat, Vector3.ZERO, Vector3.FORWARD)
 	round_time = p_round_time
 	level_key = p_level
 	level = Config.LEVELS[p_level]
@@ -78,7 +105,7 @@ func reset(p_round_time: float, p_level: String, p_boss := true) -> void:
 	for p in projectiles:
 		p.node.queue_free()
 	projectiles.clear()
-	weapons.reset({60: 5, 180: 12, 300: 18}.get(int(round_time), 5))
+	weapons.reset(Config.ADVENTURE.rockets if adventure else {60: 5, 180: 12, 300: 18}.get(int(round_time), 5))
 	_end_bullet_time(true)
 	bt = {"meter": 0.0, "active": false, "t": 0.0, "scale": 1.0}
 	Sfx.set_intensity("game")
@@ -86,7 +113,7 @@ func reset(p_round_time: float, p_level: String, p_boss := true) -> void:
 	time = round_time
 	hearts = max_hearts
 	stats = {"shots": 0, "hits": 0, "kills": 0, "headshots": 0, "knives": 0, "best_multi": 1, "bosses": 0,
-		"boss_parts": 0, "boss_win": false, "boss_on": boss_on}
+		"boss_parts": 0, "boss_win": false, "boss_on": boss_on, "adventure": adventure, "ambushes": 0}
 	countdown = 3.6
 	last_count = 99
 	state = "countdown"
@@ -433,6 +460,7 @@ const SHOW_LENGTH := 7.5
 
 
 func start_fireworks() -> void:
+	view_yaw = 0.0
 	state = "fireworks"
 	time = 0.0
 	hud.set_time(0)
@@ -456,7 +484,7 @@ func _step_fireworks(dt: float, inp) -> void:
 	inp.pitch = lerpf(inp.pitch, 0.32, minf(1.0, dt * 1.5))
 	if _show.t >= _show.next and _show.t < SHOW_LENGTH - 1.8:
 		_show.next += randf_range(0.25, 0.6)
-		var from = Vector3(randf_range(-16, 16), 2.0, randf_range(-30, -16))
+		var from = Vector3(world.seat.x + randf_range(-16, 16), 2.0, world.seat.z + randf_range(-41.5, -27.5))
 		effects.firework(from, randf_range(17, 27), ["ball", "ball", "ring", "willow"].pick_random())
 		if randf() < 0.25:  # sometimes a pair
 			effects.firework(from + Vector3(randf_range(-4, 4), 0, 0), randf_range(17, 27), "ball")
@@ -465,6 +493,8 @@ func _step_fireworks(dt: float, inp) -> void:
 
 
 func start_boss() -> void:
+	view_yaw = 0.0
+	boss.player_eye = world.eye
 	state = "boss_intro"
 	time = 0.0
 	hud.set_time(0)
@@ -660,17 +690,23 @@ func step(dt: float, inp) -> void:
 	var gdt: float = dt * bt.scale
 	hud.set_meter(bt.t / Config.BULLET_TIME.duration if bt.active else bt.meter, bt.active)
 
+	var walking := phase == "walk_out" or phase == "route" or phase == "walk_in"
 	if fighting:
 		riders.step(gdt, NO_SPAWN, elapsed())
 		boss.step(gdt)
 		if state == "boss":
 			hud.set_boss(boss.bar_state())
+	elif walking:
+		_step_walk(gdt, inp)
 	else:
 		var prev_sec = ceili(time)
 		time -= gdt
 		if ceili(time) != prev_sec and time <= 5 and time > 0:
 			Sfx.tick()
-		var diff = Config.difficulty(Config.round_intensity(elapsed(), round_time), level)
+		var intensity := Config.round_intensity(elapsed(), round_time)
+		if phase == "square2":   # the second square of the adventure starts busy
+			intensity = maxf(intensity, 0.55)
+		var diff = Config.difficulty(intensity, level)
 		if round_time > 60 and elapsed() >= next_refill and time > 5:
 			next_refill += 60
 			var healed = hearts < max_hearts
@@ -680,18 +716,178 @@ func step(dt: float, inp) -> void:
 			world.reset_ijsje()
 			effects.popup_screen("OBER: NIEUW IJSJE! +1 ♥" if healed else "OBER: NIEUW IJSJE!", "bonus", 0.5, 0.7, 2.0)
 			Sfx.ready_sound()
-		riders.step(gdt, diff, elapsed())
+		riders.step(gdt, diff, elapsed() + (60.0 if phase == "square2" else 0.0))
 	weapons.step(dt, inp)
 	weapons.try_fire(inp)
 	_update_projectiles(dt * maxf(bt.scale, 0.5))
 	hud.set_score(score)
-	if not fighting:
+	if phase == "square2":   # just sat down: turn back to the square
+		view_yaw = lerp_angle(view_yaw, 0.0, minf(1.0, dt * 2.0))
+	if not fighting and not walking:
 		hud.set_time(time)
 		if time <= 0:
-			if boss_on:
+			if phase == "square1":
+				_start_walk_out()
+			elif boss_on:
 				start_boss()
 			else:
 				start_fireworks()
+
+
+# ------------------------------------------------------------ adventure mode
+
+## How far the player may look away from the walking direction.
+func yaw_limit() -> float:
+	if rail and rail.stop != null:
+		return deg_to_rad(85.0)
+	if rail:
+		return deg_to_rad(62.0)
+	return Config.YAW_LIMIT
+
+
+func _set_player(eye: Vector3, vel: Vector3, fwd: Vector3) -> void:
+	world.eye = eye
+	riders.player_eye = eye
+	riders.player_vel = vel
+	riders.player_fwd = fwd
+
+
+## A rider spec from Config.ADVENTURE: [delay, type, path, attacks?] in the route frame.
+func _spawn_scripted(spec: Array) -> Dictionary:
+	var pts := []
+	var hops := []
+	var path = spec[2]
+	if path is Dictionary:
+		path = _loop_path(path)
+	for p in path:
+		var v := Config.AP("route", p)
+		if p.size() > 2 and not pts.is_empty():
+			hops.append([pts[-1], v, float(p[2])])
+		pts.append(v)
+	var chance := minf(0.95, 0.55 + 0.3 * level.attack)
+	return riders.spawn_path(spec[1], pts, level.speed, 17.0 if spec[3] and randf() < chance else 0.0, hops)
+
+
+## {"loop": [cx, cy, rx, ry, laps], "from": [...], "to": [...], "ccw"?} -> points: in, round and round, out.
+func _loop_path(d: Dictionary) -> Array:
+	var c: Array = d.loop
+	var pts: Array = d.from.duplicate()
+	var last: Array = pts[-1]
+	var a0 := atan2((last[1] - c[1]) / c[3], (last[0] - c[0]) / c[2])
+	var dir := -1.0 if d.get("ccw", false) else 1.0
+	var n := int(12 * c[4])
+	for i in range(1, n + 1):
+		var a := a0 - dir * TAU * i / 12.0
+		pts.append([c[0] + cos(a) * c[2], c[1] + sin(a) * c[3]])
+	pts.append_array(d.to)
+	return pts
+
+
+func _start_walk_out() -> void:
+	phase = "walk_out"
+	time = 0.0
+	_end_bullet_time(true)
+	bt.scale = 1.0
+	var A: Dictionary = Config.ADVENTURE
+	var pts := []
+	for seg in A.walk:
+		for p in seg[1]:
+			pts.append(Config.AP(seg[0], p))
+	var stops := []
+	for st in A.stops:
+		stops.append({"at": Config.AP("route", st.at), "look": Config.AP("route", st.look), "min": st.min, "max": st.max,
+			"title": st.title, "riders": st.riders})
+	var events := []
+	for ev in A.events:
+		events.append({"at": Config.AP("route", ev.at), "riders": ev.riders})
+	rail = Rail.new({"pts": pts, "speed": A.speed, "end_look": Config.AP(A.end_look[0], A.end_look[1]),
+		"stops": stops, "events": events}, _spawn_scripted)
+	_marks = {}
+	for k in ["leave", "arrive", "hide_pleintje", "show_donut"]:
+		_marks[k] = rail.offset_of(Config.AP(A[k][0], A[k][1]))
+	world.hold_ijsje(camera)
+	hud.message("OPSTAAN!", 1.3)
+	effects.popup_screen("IJSJE MEE, OP NAAR HET DONUTPLEIN!", "bonus", 0.5, 0.7, 2.4)
+	Sfx.go()
+
+
+func _step_walk(gdt: float, inp) -> void:
+	var ev := rail.step(gdt)
+	_set_player(rail.eye, rail.vel, rail.forward())
+	view_yaw = rail.view_yaw
+	# keep the player's look inside the cone around the walking direction
+	var lim := yaw_limit()
+	inp.yaw = move_toward(inp.yaw, clampf(inp.yaw, -lim, lim), gdt * 2.5)
+	match ev:
+		"stop":
+			_ambush_start()
+		"go", "go_clean":
+			stats.ambushes += 1
+			if ev == "go_clean":
+				var bonus := pts(1500)
+				score += bonus
+				effects.popup_screen("HINDERLAAG OVERLEEFD!", "big", 0.5, 0.3, 2.2)
+				effects.popup_screen("+%d" % bonus, "bonus", 0.5, 0.42, 2.2)
+				Sfx.cheer()
+			else:
+				effects.popup_screen("DOORLOPEN!", "bonus", 0.5, 0.36, 1.4)
+	# the world along the way: squares and streets switch over without a break
+	var d := rail.dist
+	if phase == "walk_out" and d >= _marks.leave:
+		phase = "route"
+	if phase == "route" and d >= _marks.arrive:
+		phase = "walk_in"
+		Config.use_map("donut", Config.AP("donut", [0, 0]))
+	rail.speed = Config.ADVENTURE.speed * (1.0 if phase == "route" else 1.3)   # brisker across the squares
+	world.show_model("pleintje", d < _marks.hide_pleintje)
+	world.show_model("donut", d >= _marks.show_donut)
+	var diff = NO_SPAWN
+	if phase == "walk_out":   # the square keeps going behind you, a bit calmer
+		diff = Config.difficulty(0.6, level)
+		diff.spawn_interval *= 1.6
+	elif phase == "walk_in":
+		diff = Config.difficulty(0.3, level)
+	riders.step(gdt, diff, round_time)
+	if rail.stop != null:
+		hud.set_timer_text("NOG %d" % rail.stop_left())
+	else:
+		hud.set_timer_text("%d m" % ceili(rail.remaining()))
+	if rail.done:
+		_sit_down()
+
+
+## An ambush begins: a bit of spectacle and the means to deal with it.
+func _ambush_start() -> void:
+	effects.popup_screen(rail.stop.title, "big", 0.5, 0.3, 2.4)
+	Sfx.warn()
+	Sfx.roar()
+	effects.add_shake(0.6)
+	weapons.add_rockets(2)
+	if not bt.active:
+		bt.meter = 1.0
+		hud.set_meter(1.0, false)
+	effects.popup_screen("+2 RAKETTEN · BULLET TIME KLAAR!", "bonus", 0.5, 0.72, 2.4)
+
+
+func _sit_down() -> void:
+	phase = "square2"
+	rail = null
+	world.activate("donut")
+	world.show_model("route", false)
+	world.show_model("pleintje", false)
+	_set_player(world.seat, Vector3.ZERO, Vector3.FORWARD)
+	world.hold_ijsje(null)
+	world.reset_ijsje()
+	var healed = hearts < max_hearts
+	if healed:
+		hearts += 1
+		hud.set_hearts(hearts, max_hearts)
+	time = Config.ADVENTURE.square_time
+	round_time = time
+	next_refill = INF
+	effects.popup_screen("HENRI: VERS IJSJE!%s" % (" +1 ♥" if healed else ""), "bonus", 0.5, 0.7, 2.4)
+	hud.message("SCHIETEN!", 0.9)
+	Sfx.ready_sound()
 
 
 func end_round(reason: String) -> void:

@@ -42,6 +42,7 @@ var camera: Camera3D
 var inp := InputState.new()
 var mode := "title"  # title | playing | paused | ended
 var settings := {"round_time": 60, "level": "normal", "boss": true, "map": "pleintje"}
+var adventure := false   # the last started mode ("OPNIEUW" replays it)
 var touch := false
 var demo_t := 0.0
 var last_score := {}
@@ -103,6 +104,7 @@ func _ready() -> void:
 	game.ended.connect(_on_ended)
 
 	hud.start_pressed.connect(start_game)
+	hud.adventure_pressed.connect(func(): adventure = true; start_game())
 	hud.menu_pressed.connect(show_title)
 	hud.resume_pressed.connect(resume)
 	hud.option_changed.connect(_on_option)
@@ -135,8 +137,19 @@ func show_title() -> void:
 	hud.hide_end()
 	hud.show_title(true)
 	hud.sync_options(settings)
-	hud.title_scores(_load_scores(), _mode_label())
 	game.state = "idle"
+	game.phase = ""
+	game.view_yaw = 0.0
+	adventure = false
+	if Config.map_id != settings.map or world.is_adventure():   # back from the adventure
+		Config.use_map(settings.map)
+		riders.clear()
+		effects.water = []
+		world.load_map()
+	world.eye = world.seat
+	world.hold_ijsje(null)
+	riders.player_eye = world.eye
+	hud.title_scores(_load_scores(), _mode_label())
 	game.boss.reset()
 	world.fold_parasol(false)
 	world.set_dusk(false, 0.01)
@@ -152,7 +165,7 @@ func start_game() -> void:
 	inp.yaw = 0.0
 	inp.pitch = -0.05
 	inp.zoom_toggle = false
-	game.reset(settings.round_time, settings.level, settings.boss)
+	game.reset(settings.round_time, settings.level, settings.boss, adventure)
 	mode = "playing"
 	if not touch:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -179,7 +192,7 @@ func _on_ended(reason: String, score: int, stats: Dictionary) -> void:
 	hud.show_game(false)
 	var list = _load_scores()
 	var qualifies = score > 0 and (list.size() < 10 or score > list[list.size() - 1].score)
-	var scale: float = {60: 1.0, 180: 2.2, 300: 3.2}.get(int(settings.round_time), 1.0)
+	var scale: float = 2.2 if adventure else {60: 1.0, 180: 2.2, 300: 3.2}.get(int(settings.round_time), 1.0)
 	hud.show_end(reason, _rank(score / scale), _mode_label(), score, stats, qualifies)
 	hud.show_end_scores(list)
 
@@ -193,6 +206,8 @@ func _rank(score: float) -> String:
 
 
 func _mode_label() -> String:
+	if adventure:
+		return "AVONTUUR · %s%s" % [Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 	return "%s · %d min · %s%s" % [Config.MAP.label, settings.round_time / 60, Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 
 
@@ -213,6 +228,8 @@ func _on_option(key: String, value) -> void:
 ## Separate hall of fame per square and with/without the end boss (the boss is worth a lot of points).
 ## The original square keeps its old keys so existing scores stay.
 func _mode_key() -> String:
+	if adventure:
+		return "adventure_%s%s" % [settings.level, "" if settings.boss else "_noboss"]
 	var prefix = "" if settings.map == "pleintje" else settings.map + "_"
 	return "%s%d_%s%s" % [prefix, settings.round_time, settings.level, "" if settings.boss else "_noboss"]
 
@@ -290,7 +307,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var s = Config.MOUSE_SENS * inp.sens_scale
-		inp.yaw = clampf(inp.yaw - e.relative.x * s, -Config.YAW_LIMIT, Config.YAW_LIMIT)
+		inp.yaw = clampf(inp.yaw - e.relative.x * s, -game.yaw_limit(), game.yaw_limit())
 		inp.pitch = clampf(inp.pitch - e.relative.y * s, Config.PITCH_MIN, Config.PITCH_MAX)
 	elif e is InputEventMouseButton and not touch:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and e.pressed:
@@ -322,7 +339,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e is InputEventScreenDrag and e.index == _look_touch:
 		_look_start.moved += e.relative.length()
 		var s = Config.TOUCH_SENS * inp.sens_scale
-		inp.yaw = clampf(inp.yaw - e.relative.x * s, -Config.YAW_LIMIT, Config.YAW_LIMIT)
+		inp.yaw = clampf(inp.yaw - e.relative.x * s, -game.yaw_limit(), game.yaw_limit())
 		inp.pitch = clampf(inp.pitch - e.relative.y * s, Config.PITCH_MIN, Config.PITCH_MAX)
 
 
@@ -347,7 +364,7 @@ func _process(delta: float) -> void:
 		if touch and inp.keys_pressed.has(KEY_ESCAPE):
 			pause()
 		game.step(dt, inp)
-		camera.rotation = Vector3(inp.pitch, inp.yaw, 0)
+		camera.rotation = Vector3(inp.pitch, inp.yaw + game.view_yaw, 0)
 		if inp.pending_aim == null:
 			hud.set_aim(null)
 	if mode == "playing" or mode == "paused":
@@ -415,6 +432,16 @@ func _parse_auto_args() -> void:
 			_auto.knife = true
 		elif a == "--bullet":
 			_auto.bullet = true
+		elif a == "--adventure":
+			adventure = true
+			_auto.play = true
+		elif a.begins_with("--phase="):   # jump ahead in the adventure: walk_out | route | walk_in | square2
+			adventure = true
+			_auto.phase = a.substr(8)
+		elif a.begins_with("--routeat="):  # with --phase=route: skip to this many metres along the walk
+			_auto.route_at = float(a.substr(10))
+		elif a == "--god":   # can't lose hearts (smoke tests)
+			_auto.god = true
 		elif a == "--noboss":
 			settings.boss = false
 		elif a == "--boss":
@@ -422,12 +449,14 @@ func _parse_auto_args() -> void:
 		elif a == "--bossfight":
 			_auto.boss = true
 			_auto.skip_intro = true
+		elif a.begins_with("--shots="):   # extra screenshots at these seconds: <autoshot>_<t>.png
+			_auto.shots = Array(a.substr(8).split(",")).map(func(x): return float(x))
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
 	if _auto.has("shot"):
 		_auto.t = 0.0
 		_auto.wait = _auto.get("wait", 6.0)
-		if _auto.get("play", false) or _auto.get("boss", false):
+		if _auto.get("play", false) or _auto.get("boss", false) or _auto.has("phase"):
 			start_game()
 
 
@@ -435,6 +464,26 @@ func _auto_step(dt: float) -> void:
 	if not _auto.has("shot"):
 		return
 	_auto.t += dt
+	if _auto.get("god", false) and mode == "playing":
+		game.hearts = maxi(game.hearts, 2)
+	if _auto.has("phase") and game.state == "playing" and not _auto.has("phase_done"):
+		_auto.phase_done = true
+		match _auto.phase:
+			"walk_out":
+				game.time = 0.05
+			"route", "walk_in", "square2":
+				# --routeat: metres past the end of 't Pleintje's north street
+				game._start_walk_out()
+				var at: float = game._marks.leave + _auto.get("route_at", 0.0)
+				if _auto.phase == "walk_in":
+					at = game._marks.arrive - 4.0
+				elif _auto.phase == "square2":
+					at = game.rail.length
+				game.rail.dist = at
+				for ev in game.rail.events:
+					ev.fired = ev.d < at - 25.0
+				for st in game.rail.stops:
+					st.done = st.d < at - 0.5
 	if _auto.get("boss", false) and game.state == "playing" and not _auto.has("boss_started"):
 		_auto.boss_started = true
 		game.time = 0.05
@@ -447,7 +496,7 @@ func _auto_step(dt: float) -> void:
 			if not _auto.has("part") or not game.boss.parts[_auto.part].alive or fmod(_auto.t, 4.0) < dt:
 				_auto.part = part.pick_random()
 			var d = (game.boss._part_center(_auto.part) - world.eye).normalized()
-			inp.yaw = atan2(-d.x, -d.z)
+			inp.yaw = atan2(-d.x, -d.z) - game.view_yaw
 			inp.pitch = asin(d.y)
 			if fmod(_auto.t, 0.5) < dt:
 				inp.fire_pressed = true
@@ -457,12 +506,13 @@ func _auto_step(dt: float) -> void:
 		var best = null
 		for r in riders.list:
 			var p: Vector3 = (r.root as Node3D).position
-			if p.z < world.eye.z - 4 and (best == null or p.distance_to(world.eye) < best.root.position.distance_to(world.eye)):
+			var fwd := Vector3(-sin(game.view_yaw), 0, -cos(game.view_yaw))
+			if (p - world.eye).dot(fwd) > 4 and r.alive and (best == null or p.distance_to(world.eye) < best.root.position.distance_to(world.eye)):
 				best = r
 		if best != null:
 			var t: Vector3 = (best.model as Node3D).global_transform * Vector3(-0.07, 1.17, 0)
 			var d = (t - world.eye).normalized()
-			inp.yaw = atan2(-d.x, -d.z)
+			inp.yaw = wrapf(atan2(-d.x, -d.z) - game.view_yaw, -PI, PI)
 			inp.pitch = asin(d.y)
 			if fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
 				inp.fire_pressed = true
@@ -474,6 +524,10 @@ func _auto_step(dt: float) -> void:
 	if _auto.get("bullet", false) and mode == "playing" and game.state == "playing" and _auto.t > _auto.wait - 1.2 and not game.bt.active:
 		game.bt.meter = 1.0
 		game.start_bullet_time()
+	for st in _auto.get("shots", []).duplicate():
+		if _auto.t >= st:
+			_auto.shots.erase(st)
+			get_viewport().get_texture().get_image().save_png(_auto.shot.replace(".png", "_%d.png" % int(st * 10)))
 	if _auto.t >= _auto.wait:
 		_auto.erase("play")
 		var img = get_viewport().get_texture().get_image()

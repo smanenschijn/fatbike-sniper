@@ -3,6 +3,7 @@ extends CanvasLayer
 ## HUD + menus (title, pause, end) built in code, styled like the web version.
 
 signal start_pressed
+signal adventure_pressed
 signal menu_pressed
 signal resume_pressed
 signal option_changed(key: String, value)
@@ -65,6 +66,8 @@ var _boss_bar: BossBar
 var _name_card: VBoxContainer
 var _skip: Label
 var _cinematic := false
+var _fade: ColorRect
+var _fade_tw: Tween
 
 
 func _ready() -> void:
@@ -211,6 +214,11 @@ func _build_game_ui() -> void:
 	_damage.color = Color(0.9, 0.12, 0.16, 0.0)
 	_damage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	game_ui.add_child(_damage)
+	_fade = ColorRect.new()   # the blink between the squares and the streets in the adventure mode
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.color = Color("1a1410", 0.0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game_ui.add_child(_fade)
 	_scope = ScopeOverlay.new()
 	_scope.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -462,6 +470,24 @@ func set_time(t: float) -> void:
 	_timer.add_theme_color_override("font_color", RED if s <= 10 else Color.WHITE)
 
 
+## Free text in the timer spot (the adventure shows the metres left to walk).
+func set_timer_text(text: String) -> void:
+	_last.time = -1
+	_timer.text = text
+	_timer.add_theme_color_override("font_color", Color.WHITE)
+
+
+func fade(alpha: float, secs := 0.5) -> void:
+	if _fade_tw:
+		_fade_tw.kill()
+	_fade_tw = create_tween()
+	_fade_tw.tween_property(_fade, "color:a", alpha, secs)
+
+
+func fade_alpha() -> float:
+	return _fade.color.a
+
+
 func set_hearts(n: int, max_n: int) -> void:
 	var key = "%d/%d" % [n, max_n]
 	if _last.get("hearts") == key:
@@ -642,16 +668,24 @@ func _build_title() -> void:
 		(opts2 if group[1] == "boss" else opts).add_child(p)
 	v.add_child(opts)
 	v.add_child(opts2)
+	var starts = HBoxContainer.new()
+	starts.alignment = BoxContainer.ALIGNMENT_CENTER
+	starts.add_theme_constant_override("separation", 24)
 	var start = _button("SPELEN", 48)
-	start.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	start.pressed.connect(func(): start_pressed.emit())
-	v.add_child(start)
+	starts.add_child(start)
+	var adv = _button("AVONTUUR", 48)
+	adv.tooltip_text = "'t Pleintje → door de stad → Henri Donutplein"
+	adv.pressed.connect(func(): adventure_pressed.emit())
+	starts.add_child(adv)
+	v.add_child(starts)
 	var cards = HBoxContainer.new()
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 16)
 	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
 		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-4 of scrollwiel: wapen wisselen\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
 	cards.add_child(_card("BESTURING", controls))
+	cards.add_child(_card("AVONTUUR", "Overleef 1 minuut op 't Pleintje,\nloop dan met je ijsje door de stad\nnaar het Henri Donutplein.\nOnderweg: hinderlagen bij de brug\nen in de speeltuin. Daar: nieuw ijsje\nen nog 1 minuut (+ eindbaas)."))
 	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)\nFATBIKETRON: fiets eraf +500, winst +5000"))
 	var hs = _card("HALL OF FAME", "")
 	_hs_title = VBoxContainer.new()

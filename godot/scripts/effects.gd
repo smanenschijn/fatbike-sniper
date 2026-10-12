@@ -85,17 +85,48 @@ func add_debris(node: Node3D, center: Vector3, vel: Vector3, ang: Vector3, opts 
 	return g
 
 
+## Water surfaces (the adventure's gracht): [Rect2 on x/z, surface height]. Debris that lands there splashes and sinks.
+var water: Array = []
+
+
+func water_level(p: Vector3):
+	for w in water:
+		if (w[0] as Rect2).has_point(Vector2(p.x, p.z)):
+			return w[1]
+	return null
+
+
+func splash(pos: Vector3) -> void:
+	for i in 10:
+		_spawn("puff", Color(0.85, 0.95, 1.0, 0.9), randf_range(0.3, 0.6), pos + Vector3(randf_range(-0.4, 0.4), 0.1, randf_range(-0.4, 0.4)),
+			Vector3(randf_range(-1.5, 1.5), randf_range(3.5, 6.5), randf_range(-1.5, 1.5)), randf_range(0.6, 1.0), 1.6, 9.0, 0.6)
+	puff(pos + Vector3(0, 0.1, 0), Color(0.8, 0.9, 0.95, 0.8), 6, 0.8)
+	Sfx.play("knock_off", 0.0, 0.55)
+
+
 func _update_debris(dt: float) -> void:
 	for i in range(_debris.size() - 1, -1, -1):
 		var d: Dictionary = _debris[i]
 		var g: Node3D = d.g
 		d.age += dt
+		var wl = water_level(g.position)
+		if d.get("sinking", false):
+			g.position += Vector3(d.vel.x * 0.2, -0.6, d.vel.z * 0.2) * dt
+			if d.age > d.life:
+				g.queue_free()
+				_debris.remove_at(i)
+			continue
 		d.vel.y -= Config.GRAVITY * 1.5 * dt
 		g.position += d.vel * dt
 		var w: float = d.ang.length()
 		if w > 0.0001:
 			g.basis = Basis(d.ang / w, w * dt) * g.basis
-		if g.position.y < d.radius:
+		if wl != null and g.position.y < float(wl) + 0.1:
+			d.sinking = true
+			d.life = d.age + 2.5
+			splash(Vector3(g.position.x, float(wl), g.position.z))
+			continue
+		if wl == null and g.position.y < d.radius:
 			g.position.y = d.radius
 			if d.vel.y < -1.5 and not d.landed:
 				d.landed = true

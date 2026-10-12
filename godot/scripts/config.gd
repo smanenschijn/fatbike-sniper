@@ -64,22 +64,150 @@ static var MAPS := {
 }
 const MAP_ORDER := ["pleintje", "donut"]
 
+## The adventure mode: survive on 't Pleintje, walk the streets to the Henri Donutplein, survive there and meet
+## FATBIKETRON, all in one world. Three models side by side, each in its own frame (Blender x, y): 't Pleintje
+## at the origin, the streets (route.glb, blender/build_route.py) at FRAMES.route, the Donutplein at
+## FRAMES.donut. The walk is one continuous path through those frames.
+## Riders: [delay, type, path, attacks?]; a path point [x, y, h] makes the rider jump from the previous point
+## to this one, h metres high; a path {"loop": [cx, cy, rx, ry, laps], "from": [...], "to": [...]} circles.
+const ADVENTURE := {
+	"square_time": 60.0,
+	"rockets": 8,
+	"speed": 3.3,
+	"frames": {"pleintje": [0.0, 0.0], "route": [0.0, 70.0], "donut": [-76.0, 222.5]},
+	"walk": [
+		# stand up from the café table, past the fountain into the north street ...
+		["pleintje", [[0, -11.55], [0.9, -9.6], [5.6, -3.0], [6.2, 7.0], [2.6, 14.0], [0, 19.5], [0, 40]]],
+		# ... the streets ...
+		["route", [[0, -14], [0, 31], [0.8, 35.5], [3.5, 38.3], [8, 39.6], [15, 39.8], [18.4, 40.6], [20, 43], [20, 51],
+			[20, 56], [20, 94], [20, 105], [20, 109], [20, 128], [20, 150], [20, 165], [18, 170], [13, 172], [-16, 172]]],
+		# ... in along the Donutplein's east road and sit down at Henri's
+		["donut", [[50, 19.5], [30, 19.5], [15.5, 19.5], [7, 10], [2.5, 0], [0.8, -8.5], [0, -11.55]]],
+	],
+	"end_look": ["donut", [0, 10]],
+	"leave": ["pleintje", [0, 24]],      # no more square riders from here
+	"arrive": ["donut", [34, 19.5]],     # the Donutplein's riders start here
+	"hide_pleintje": ["route", [10, 39.6]],
+	"show_donut": ["route", [20, 75]],
+	"water": ["route", [-65, 42, 65, 50], -0.95],   # the gracht: things that fall in splash
+	"stops": [
+		{"at": [12, 39.7], "look": [16, 47], "min": 14.0, "max": 32.0, "title": "HINDERLAAG BIJ DE GRACHT!", "riders": [
+			# over the bridge, one after the other
+			[0.5, "normal", [[20, 74], [20, 56], [20, 44], [18.5, 41.0], [12, 37.3], [-40, 37.3]], true],
+			[1.3, "normal", [[20.8, 76], [20.8, 56], [21, 44], [21.5, 41], [27, 37.6], [58, 37.6]], true],
+			[2.1, "duo", [[19.4, 78], [19.4, 56], [19.5, 44], [18, 40.8], [10, 37.4], [-40, 37.4]], true],
+			[2.9, "normal", [[20.5, 80], [20.5, 56], [20.5, 44], [22, 41], [28, 37.6], [58, 37.6]], true],
+			# jumpers: off the ramps on the far quay, over the water
+			[5.0, "normal", [[-32, 53], [-4, 53], [3.5, 53.4], [5, 52.2], [5, 50.3], [5, 40.4, 2.8], [3, 38.2], [-6, 37.4], [-40, 37.4]], true],
+			[5.5, "normal", [[44, 52.2], [-58, 52.2]], true],
+			[6.3, "normal", [[46, 53], [34, 53], [30.5, 53.4], [29, 52.2], [29, 50.3], [29, 40.4, 2.8], [31, 38.2], [40, 37.4], [58, 37.4]], true],
+			[7.6, "wheelie", [[-32, 53], [-4, 53], [3.5, 53.4], [5, 52.2], [5, 50.3], [5, 40.4, 3.4], [3, 38.2], [-6, 37.4], [-40, 37.4]], false],
+			[8.8, "duo", [[46, 53], [34, 53], [30.5, 53.4], [29, 52.2], [29, 50.3], [29, 40.4, 2.6], [31, 38.2], [40, 37.4], [58, 37.4]], true],
+			[9.6, "normal", [[-36, 52.2], [58, 52.2]], true],
+			# the pincer: along the quay from both sides, then two speaker bosses over the bridge
+			[11.5, "normal", [[-34, 37.3], [8, 37.3], [13, 37.2], [58, 37.2]], true],
+			[11.5, "normal", [[44, 37.6], [24, 37.6], [18, 37.5], [-58, 37.5]], true],
+			[12.6, "duo", [[-36, 38.0], [6, 38.0], [11, 37.1], [58, 37.1]], true],
+			[13.5, "boss", [[46, 52.2], [24, 52.2], [20.5, 50], [20.5, 44], [22, 41], [28, 37.6], [58, 37.6]], true],
+			[15.0, "boss", [[-30, 52.2], [16, 52.2], [19.5, 50], [19.5, 44], [18, 41], [10, 37.6], [-58, 37.6]], true],
+			[16.0, "wheelie", [[46, 53], [34, 53], [30.5, 53.4], [29, 52.2], [29, 50.3], [29, 40.4, 3.4], [31, 38.2], [40, 37.4], [58, 37.4]], false],
+		]},
+		{"at": [20, 109], "look": [20, 120], "min": 14.0, "max": 34.0, "title": "HINDERLAAG IN DE SPEELTUIN!", "riders": [
+			# from three streets at once
+			[0.5, "normal", [[-20, 116], [6, 116], [12, 116], [16, 119], [24, 120], [30, 116], [56, 116]], true],
+			[0.5, "normal", [[56, 116], [34, 116], [27, 114], [23, 113], [15, 112.5], [8, 116], [-20, 116]], true],
+			[1.2, "duo", [[20, 150], [20, 128], [20, 121], [23, 117], [30, 116], [56, 116]], true],
+			[2.0, "normal", [[19, 150], [19, 128], [18, 118], [13, 113], [7, 116], [-20, 116]], true],
+			# the merry-go-round: a ring of riders around the playground
+			[5.0, "normal", {"loop": [20, 119, 10.5, 6.5, 1.5], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, true],
+			[5.6, "normal", {"loop": [20, 119, 10.5, 6.5, 1.5], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, true],
+			[6.2, "duo", {"loop": [20, 119, 10.5, 6.5, 1.5], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, true],
+			[6.8, "normal", {"loop": [20, 119, 10.5, 6.5, 1.5], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, true],
+			[7.4, "wheelie", {"loop": [20, 119, 10.5, 6.5, 1.5], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, false],
+			# stunt hops over the grass
+			[10.0, "wheelie", [[56, 116], [34, 116], [29, 116], [24, 117, 1.4], [16, 117, 1.4], [8, 116], [-20, 116]], false],
+			[10.8, "normal", [[20, 150], [20, 128], [26, 124], [27, 118, 1.2], [25, 113], [30, 116], [56, 116]], true],
+			# finale: two speaker bosses circling, with company
+			[13.0, "boss", {"loop": [20, 119, 11, 7, 1.0], "from": [[-20, 116], [6, 116]], "to": [[34, 116], [56, 116]]}, true],
+			[13.0, "boss", {"loop": [20, 119, 11, 7, 1.0], "from": [[56, 116], [34, 116]], "to": [[6, 116], [-20, 116]], "ccw": true}, true],
+			[14.0, "duo", [[20, 150], [20, 128], [20, 122], [14, 116], [7, 116], [-20, 116]], true],
+			[15.0, "duo", [[-20, 116], [6, 116], [14, 113.5], [26, 113.5], [34, 116], [56, 116]], true],
+			[16.5, "normal", [[19, 150], [19, 128], [24, 120], [33, 116], [56, 116]], true],
+		]},
+	],
+	"events": [
+		# the Winkelstraat: head-on, out of the alley on the left, out of the alley on the right
+		{"at": [0, -4], "riders": [[0.0, "normal", [[2.2, 36], [2.2, 10], [2.4, -40]], true]]},
+		{"at": [0, 3], "riders": [[0.0, "normal", [[-36, 9.75], [-6, 9.75], [-2.2, 6.5], [-2.2, -40]], true]]},
+		{"at": [0, 8], "riders": [[0.0, "normal", [[36, 19.75], [6, 19.75], [2.2, 16], [2.2, -40]], true],
+			[1.2, "duo", [[36, 19.75], [6, 19.75], [2.4, 15], [2.4, -40]], true]]},
+		{"at": [0, 15], "riders": [[0.0, "wheelie", [[-58, 38.6], [-3, 38.6], [-1.8, 33], [-1.8, -40]], false],
+			[1.5, "normal", [[58, 38.2], [4, 38.2], [2.2, 33], [2.2, -40]], true]]},
+		{"at": [0, 24], "riders": [[0.0, "normal", [[58, 52.2], [-58, 52.2]], true],
+			[2.5, "normal", [[-58, 38.4], [-6, 38.4], [-2.0, 34], [-2.0, -40]], true]]},
+		# the Woonstraat: across the crossroads, head-on out of the gate, out of the side street
+		{"at": [20, 52], "riders": [[0.0, "normal", [[-25, 68.2], [55, 68.2]], true],
+			[1.4, "normal", [[55, 69.6], [-25, 69.6]], true]]},
+		{"at": [20, 62], "riders": [[0.0, "normal", [[20, 103], [18.0, 90], [18.0, 52], [18, 44], [17, 40], [-58, 37.8]], true],
+			[0.9, "duo", [[20, 103], [22, 90], [22, 52], [22, 44], [23, 40], [58, 37.8]], true]]},
+		{"at": [20, 72], "riders": [[0.0, "normal", [[55, 82.5], [26, 82.5], [22, 79], [22, 52], [22.5, 44], [24, 40], [58, 37.8]], true],
+			[1.6, "wheelie", [[20, 103], [17.6, 92], [17.6, 52], [18, 44], [17, 40], [-58, 37.8]], false]]},
+		{"at": [20, 82], "riders": [[0.0, "boss", [[20, 128], [20, 104], [18, 92], [17.8, 52], [18, 44], [17, 40], [-58, 37.8]], true]]},
+		# the way out: head-on down the exit street
+		{"at": [20, 132], "riders": [[0.0, "normal", [[-10, 172], [14, 172], [21.8, 166], [21.8, 125], [26, 117], [56, 116]], true],
+			[1.0, "duo", [[-14, 172.8], [14, 172.8], [18.2, 166], [18.2, 125], [14, 117], [-20, 116]], true]]},
+		# the street to the Donutplein: out of the square, head-on
+		{"at": [20, 160], "riders": [[0.0, "normal", [[-40, 171], [10, 171], [20.8, 168], [20.8, 125], [26, 117], [56, 116]], true],
+			[1.2, "wheelie", [[-40, 173], [10, 173], [19, 168], [19, 125], [14, 117], [-20, 116]], false]]},
+		{"at": [10, 172], "riders": [[0.0, "boss", [[-50, 173], [12, 173], [21, 166], [21, 125], [26, 117], [56, 116]], true]]},
+	],
+}
+
+## Blender [x, y] in an adventure frame to a Godot position.
+static func AP(frame: String, p: Array) -> Vector3:
+	var o: Array = ADVENTURE.frames[frame]
+	return B(p[0] + o[0], p[1] + o[1])
+
 static var map_id := "pleintje"
 static var MAP: Dictionary = MAPS.pleintje
 static var RING_RADIUS := 9.5
 static var FOUNTAIN := B(0, 3)
 static var ATTACK_Z := B(0, -8.2).z
 static var ENTRIES: Array = MAPS.pleintje.entries
+static var OFFSET := Vector3.ZERO
 
 
-static func use_map(id: String) -> void:
+## Make `id` the square riders and the boss use. `offset` (Godot) moves its data along with a square that
+## isn't at the origin (the adventure world).
+static func use_map(id: String, offset := Vector3.ZERO) -> void:
 	if not MAPS.has(id):
 		id = "pleintje"
 	map_id = id
-	MAP = MAPS[id]
+	OFFSET = offset
+	MAP = MAPS[id] if offset == Vector3.ZERO else _shifted(MAPS[id], offset)
 	FOUNTAIN = MAP.center
 	RING_RADIUS = MAP.ring
 	ENTRIES = MAP.entries
+	ATTACK_Z = B(0, -8.2).z + offset.z
+
+
+static func _shifted(m: Dictionary, o: Vector3) -> Dictionary:
+	var s := m.duplicate(true)
+	s.center += o
+	s.boss_spot += o
+	s.boss_x += Vector2(o.x, o.x)
+	s.boss_z += Vector2(o.z, o.z)
+	for e in s.entries:
+		e.spawn += o
+		e.mouth += o
+		if e.has("via"):
+			e.via = e.via.map(func(v): return v + o)
+	return s
+
+## Blender [x, y] points to Godot positions on the ground.
+static func BP(pts: Array) -> Array:
+	return pts.map(func(p): return B(p[0], p[1]))
+
 
 static func is_touch() -> bool:
 	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and not OS.has_feature("pc") or OS.get_cmdline_user_args().has("--touch")
