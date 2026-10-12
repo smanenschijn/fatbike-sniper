@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "game", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"], "port": 5173 }
+    { "name": "game", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"], "port": 5173 },
+    { "name": "godot-web", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8060", "--directory", "godot/build/web"], "port": 8060 }
   ]
 }
