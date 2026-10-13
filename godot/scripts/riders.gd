@@ -36,6 +36,12 @@ var world: World   # line-of-sight checks: riders only throw when they can see y
 var player_eye := Vector3.ZERO
 var player_vel := Vector3.ZERO   # the player walks in the adventure mode: knives lead the target
 var player_fwd := Vector3.FORWARD
+# Where the player can aim (set by Game every frame): riders only throw from inside this cone, so every
+# knife can be seen coming and shot down.
+var cone_yaw := 0.0
+var cone_half := PI
+var throw_gap := 0.0   # > 0: one throw at a time, at least this many seconds apart (adventure walk)
+var _throw_cd := 0.0
 var settings := {"accuracy": 0.6, "windup": 0.75}
 var list: Array = []
 var knives: Array = []
@@ -347,6 +353,26 @@ func spawn_path(type: String, pts: Array, speed_mul: float, attack_near := 0.0, 
 	return r
 
 
+## Is this position inside the player's aiming cone?
+func in_cone(p: Vector3) -> bool:
+	var d := Vector3(p.x - player_eye.x, 0, p.z - player_eye.z)
+	if d.length() < 0.5:
+		return false
+	return absf(wrapf(atan2(-d.x, -d.z) - cone_yaw, -PI, PI)) <= cone_half
+
+
+## May this rider throw now: in sight and where the player can aim at it?
+func can_throw(r: Dictionary) -> bool:
+	return in_cone((r.root as Node3D).position) and sees_player(r)
+
+
+## May a new throw start now (one at a time while throw_gap is set)?
+func _may_start_throw(r: Dictionary) -> bool:
+	if throw_gap > 0.0 and (_throw_cd > 0.0 or list.any(func(x): return x.get("windup", 0.0) > 0.0)):
+		return false
+	return can_throw(r)
+
+
 ## Can this rider see the player (nothing solid between its head and the player's eye)?
 func sees_player(r: Dictionary) -> bool:
 	if world == null:
@@ -415,6 +441,7 @@ func _place(r: Dictionary, dt: float) -> void:
 
 func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 	retaliate_cooldown -= dt
+	_throw_cd -= dt
 	spawn_timer -= dt
 	if spawn_timer <= 0 and list.size() < diff.max_alive:
 		spawn_timer = diff.spawn_interval * randf_range(0.7, 1.3)
@@ -440,11 +467,11 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			var d = Vector2(r.root.position.x - ap.x, r.root.position.z - ap.z).length()
 			if d < 6:
 				speed *= 0.65
-			if d < 2.5 and sees_player(r):
+			if d < 2.5 and _may_start_throw(r):
 				start_windup(r, randf() < settings.accuracy)
 		elif r.attack_near > 0.0 and not r.thrown and r.alive and (r.root as Node3D).position.y < 0.3:
 			var to: Vector3 = (r.root as Node3D).position - Vector3(player_eye.x, 0, player_eye.z)
-			if to.length() < r.attack_near and to.dot(player_fwd) > 3.0 and sees_player(r):
+			if to.length() < r.attack_near and to.dot(player_fwd) > 3.0 and _may_start_throw(r):
 				start_windup(r, randf() < settings.accuracy)
 		if r.get("freeze", 0.0) > 0.0:   # brain freeze
 			r.freeze -= dt
@@ -623,6 +650,9 @@ func start_windup(r: Dictionary, accurate: bool) -> void:
 
 func _release_knife(r: Dictionary) -> void:
 	r.windup = 0.0
+	if not can_throw(r):   # rode out of your aim or behind something while winding up: no throw
+		r.thrown = r.attack_point != null
+		return
 	throw_knife(r, r.get("windup_accurate", true))
 
 
@@ -645,6 +675,7 @@ func throw_knife(r: Dictionary, accurate: bool) -> void:
 	knives.append({"mesh": mesh, "vel": vel, "age": 0.0, "spin": randf_range(14, 20)})
 	r.thrown = true
 	r.knife_cooldown = randf_range(3, 5)
+	_throw_cd = throw_gap
 	effects.bubble(r.root, Vector3(0, 2.6, 0), Config.THROW_SHOUTS.pick_random(), true, 1.3)
 	Sfx.whoosh()
 
@@ -652,7 +683,7 @@ func throw_knife(r: Dictionary, accurate: bool) -> void:
 func retaliate() -> void:
 	if retaliate_cooldown > 0:
 		return
-	var cands = list.filter(func(r): return r.alive and r.knife_cooldown <= 0 and r.type != "wheelie" and (r.root as Node3D).position.distance_to(player_eye) < 42 and sees_player(r))
+	var cands = list.filter(func(r): return r.alive and r.knife_cooldown <= 0 and r.type != "wheelie" and (r.root as Node3D).position.distance_to(player_eye) < 42 and _may_start_throw(r))
 	if cands.is_empty():
 		return
 	start_windup(cands.pick_random(), randf() < settings.accuracy - 0.05)

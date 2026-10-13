@@ -694,6 +694,10 @@ func on_player_hit(knife_vel: Vector3, reason := "NEERGESTOKEN!") -> void:
 # ------------------------------------------------------------ loop
 
 func step(dt: float, inp) -> void:
+	# riders only throw from where you can aim, with a margin so the throw isn't on the very edge of the view
+	riders.cone_yaw = view_yaw
+	riders.cone_half = yaw_limit() - deg_to_rad(30.0 if rail and rail.stop != null else 15.0)
+	riders.throw_gap = 1.0 if rail else 0.0
 	for i in range(tracers.size() - 1, -1, -1):
 		var t: Dictionary = tracers[i]
 		t.age += dt
@@ -871,6 +875,10 @@ func _step_walk(gdt: float, inp) -> void:
 			_ambush_start()
 		"go", "go_clean":
 			stats.ambushes += 1
+			if hearts < max_hearts:   # made it through: a breather
+				hearts += 1
+				hud.set_hearts(hearts, max_hearts)
+				effects.popup_screen("+1 ♥", "bonus", 0.5, 0.5, 1.8)
 			if ev == "go_clean":
 				var bonus := pts(1500)
 				score += bonus
