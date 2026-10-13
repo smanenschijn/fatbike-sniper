@@ -4,3 +4,4 @@ dist/
 *.blend
 renders/
 .DS_Store
+__pycache__/
