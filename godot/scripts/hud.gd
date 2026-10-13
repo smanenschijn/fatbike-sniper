@@ -3,7 +3,8 @@ extends CanvasLayer
 ## HUD + menus (title, pause, end) built in code, styled like the web version.
 
 signal start_pressed
-signal adventure_pressed
+signal mode_selected(adventure: bool)
+signal back_pressed
 signal menu_pressed
 signal resume_pressed
 signal option_changed(key: String, value)
@@ -51,6 +52,12 @@ var _last := {}
 var _opt_buttons := {}
 var _hs_title: VBoxContainer
 var _hs_mode: Label
+var _home: VBoxContainer
+var _setup: VBoxContainer
+var _info: VBoxContainer
+var _setup_title: Label
+var _setup_sub: Label
+var _classic_only: Array = []
 var _end_reason: Label
 var _end_rank: Label
 var _end_mode: Label
@@ -602,34 +609,105 @@ func _build_title() -> void:
 	title_screen = _screen()
 	var v: VBoxContainer = title_screen.get_meta("content")
 	_logo(v)
+	_home = VBoxContainer.new()
+	_home.add_theme_constant_override("separation", 16)
+	_setup = VBoxContainer.new()
+	_setup.add_theme_constant_override("separation", 16)
+	v.add_child(_home)
+	v.add_child(_setup)
+	_info = VBoxContainer.new()
+	_info.add_theme_constant_override("separation", 16)
+	v.add_child(_info)
+	_build_home()
+	_build_info()
+	_build_setup()
+	show_home()
+
+
+## A big card-shaped button: a title with a small line of text under it.
+func _card_button(title: String, sub: String, w: float, h: float, title_size := 32, sub_size := 13) -> Button:
+	var b = _button("", 22, true)
+	b.custom_minimum_size = Vector2(w, h)
+	b.set_meta("card", true)
+	var bv = VBoxContainer.new()
+	bv.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bv.offset_left = 14
+	bv.offset_right = -14
+	bv.alignment = BoxContainer.ALIGNMENT_CENTER
+	bv.add_theme_constant_override("separation", 0)
+	bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t = _label(title, title_size, INK, 0)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var sl = _label(sub, sub_size, Color("3a3530"), 0, true)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	bv.add_child(t)
+	bv.add_child(sl)
+	b.add_child(bv)
+	return b
+
+
+## Step 1: pick the mode.
+func _build_home() -> void:
 	var tag = _label("ZIT. RICHT. SCHIET. HOEVEEL KUN JIJ ER NEERHALEN?", 32, Color.WHITE, 6)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(tag)
-	# level select: one card per square
+	_home.add_child(tag)
+	var modes = HBoxContainer.new()
+	modes.alignment = BoxContainer.ALIGNMENT_CENTER
+	modes.add_theme_constant_override("separation", 28)
+	for m in [[false, "KLASSIEK", "Kies een plein en een tijd.\nHaal er zoveel mogelijk van hun fiets."],
+			[true, "CAMPAGNE", "Van 't Pleintje met je ijsje door de stad\nnaar het Henri Donutplein."]]:
+		var b = _card_button(m[1], m[2], 380, 150, 64, 16)
+		for st in ["normal", "hover"]:
+			(b.get_theme_stylebox(st) as StyleBoxFlat).bg_color = YELLOW if st == "normal" else Color("ffde66")
+		var adv: bool = m[0]
+		b.pressed.connect(func(): mode_selected.emit(adv))
+		modes.add_child(b)
+	_home.add_child(modes)
+	var small = HBoxContainer.new()
+	small.alignment = BoxContainer.ALIGNMENT_CENTER
+	small.add_theme_constant_override("separation", 16)
+	var info = _button("? INFO", 20, true)
+	info.pressed.connect(func(): Sfx.click(); show_info(true))
+	small.add_child(info)
+	var music = _button("♪ MUZIEK", 20, true)
+	music.pressed.connect(func(): music_toggle.emit())
+	small.add_child(music)
+	_home.add_child(small)
+
+
+## Behind the info button on the home page: controls and points.
+func _build_info() -> void:
+	var cards = HBoxContainer.new()
+	cards.alignment = BoxContainer.ALIGNMENT_CENTER
+	cards.add_theme_constant_override("separation", 16)
+	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier (vasthouden\nvoor de IJSMACHINE)\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
+		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-5 of scrollwiel: wapen wisselen\nIJSMACHINE: knop ingedrukt houden\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
+	cards.add_child(_card("BESTURING", controls))
+	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)\nFATBIKETRON: fiets eraf +500, winst +5000"))
+	_info.add_child(cards)
+	var close = _button("‹ TERUG", 30, true)
+	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close.pressed.connect(func(): Sfx.click(); show_info(false))
+	_info.add_child(close)
+
+
+## Step 2: the options for the chosen mode, then play.
+func _build_setup() -> void:
+	_setup_title = _label("", 64, YELLOW, 10)
+	_setup_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_setup.add_child(_setup_title)
+	_setup_sub = _label("", 18, Color("fff8ea"), 6, true)
+	_setup_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_setup.add_child(_setup_sub)
+	# level select: one card per square (classic only)
 	var maps = HBoxContainer.new()
 	maps.alignment = BoxContainer.ALIGNMENT_CENTER
 	maps.add_theme_constant_override("separation", 16)
 	_opt_buttons["map"] = []
 	for id in Config.MAP_ORDER:
 		var m: Dictionary = Config.MAPS[id]
-		var b = _button("", 22, true)
-		b.custom_minimum_size = Vector2(340, 88)
-		b.set_meta("card", true)
-		var bv = VBoxContainer.new()
-		bv.set_anchors_preset(Control.PRESET_FULL_RECT)
-		bv.offset_left = 14
-		bv.offset_right = -14
-		bv.alignment = BoxContainer.ALIGNMENT_CENTER
-		bv.add_theme_constant_override("separation", 0)
-		bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var t = _label(m.label, 32, INK, 0)
-		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var sub = _label(m.sub, 13, Color("3a3530"), 0, true)
-		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		bv.add_child(t)
-		bv.add_child(sub)
-		b.add_child(bv)
+		var b = _card_button(m.label, m.sub, 340, 88)
 		b.set_meta("value", id)
 		b.pressed.connect(func(): option_changed.emit("map", id))
 		maps.add_child(b)
@@ -642,17 +720,14 @@ func _build_title() -> void:
 	mh.add_child(maps)
 	mp.add_child(mh)
 	mp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(mp)
-	var opts = HBoxContainer.new()
-	opts.alignment = BoxContainer.ALIGNMENT_CENTER
-	opts.add_theme_constant_override("separation", 16)
-	var opts2 = HBoxContainer.new()
-	opts2.alignment = BoxContainer.ALIGNMENT_CENTER
+	_setup.add_child(mp)
+	_classic_only = [mp]
 	for group in [["TIJD", "round_time", [[60, "1 MIN"], [180, "3 MIN"], [300, "5 MIN"]]],
 			["NIVEAU", "level", [["easy", "MAKKELIJK"], ["normal", "NORMAAL"], ["hard", "MOEILIJK"]]],
 			["EINDBAAS", "boss", [[true, "AAN"], [false, "UIT (VUURWERK)"]]]]:
 		var p = _panel()
 		p.mouse_filter = Control.MOUSE_FILTER_PASS
+		p.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var h = HBoxContainer.new()
 		h.add_child(_label(group[0], 22, YELLOW, 4))
 		_opt_buttons[group[1]] = []
@@ -665,39 +740,53 @@ func _build_title() -> void:
 			h.add_child(b)
 			_opt_buttons[group[1]].append(b)
 		p.add_child(h)
-		(opts2 if group[1] == "boss" else opts).add_child(p)
-	v.add_child(opts)
-	v.add_child(opts2)
+		_setup.add_child(p)
+		if group[1] == "round_time":
+			_classic_only.append(p)
 	var starts = HBoxContainer.new()
 	starts.alignment = BoxContainer.ALIGNMENT_CENTER
 	starts.add_theme_constant_override("separation", 24)
+	var back = _button("‹ TERUG", 30, true)
+	back.pressed.connect(func(): back_pressed.emit())
+	starts.add_child(back)
 	var start = _button("SPELEN", 48)
 	start.pressed.connect(func(): start_pressed.emit())
 	starts.add_child(start)
-	var adv = _button("AVONTUUR", 48)
-	adv.tooltip_text = "'t Pleintje → door de stad → Henri Donutplein"
-	adv.pressed.connect(func(): adventure_pressed.emit())
-	starts.add_child(adv)
-	v.add_child(starts)
-	var cards = HBoxContainer.new()
-	cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards.add_theme_constant_override("separation", 16)
-	var controls = "Slepen: rondkijken\nTik op een fatbiker: schieten\nVUUR: schiet op het vizier (vasthouden\nvoor de IJSMACHINE)\nWapens aantikken, ZOOM voor de sniper\nBullet time: knop linksonder" if touch \
-		else "Muis: richten\nLinkermuisknop: schieten\nRechtermuisknop of Shift: inzoomen\n1-5 of scrollwiel: wapen wisselen\nIJSMACHINE: knop ingedrukt houden\nR: herladen   Esc: pauze   M: muziek\nB of spatie: bullet time\nF11 of ⌘F: schermvullend"
-	cards.add_child(_card("BESTURING", controls))
-	cards.add_child(_card("AVONTUUR", "Overleef 1 minuut op 't Pleintje,\nloop dan met je ijsje door de stad\nnaar het Henri Donutplein.\nOnderweg: hinderlagen bij de brug\nen in de speeltuin. Daar: nieuw ijsje\nen nog 1 minuut (+ eindbaas)."))
-	cards.add_child(_card("PUNTEN", "Fatbiker van z'n fiets +100\nHeadshot +50   Wheelie-gozer x2\nMeerdere in één schot +100 per extra\nMes uit de lucht schieten +150\nSpeaker-baas +500 (3 treffers)\nFATBIKETRON: fiets eraf +500, winst +5000"))
+	_setup.add_child(starts)
 	var hs = _card("HALL OF FAME", "")
+	hs.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hs.custom_minimum_size = Vector2(420, 0)
 	_hs_title = VBoxContainer.new()
 	_hs_mode = _label("", 14, Color("c8bfae"), 0, true)
 	hs.get_child(0).add_child(_hs_mode)
 	hs.get_child(0).add_child(_hs_title)
-	cards.add_child(hs)
-	v.add_child(cards)
-	var music = _button("♪ MUZIEK", 20, true)
-	music.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	music.pressed.connect(func(): music_toggle.emit())
-	v.add_child(music)
+	_setup.add_child(hs)
+
+
+func show_home() -> void:
+	_home.visible = true
+	_setup.visible = false
+	_info.visible = false
+
+
+func show_info(on: bool) -> void:
+	_info.visible = on
+	_home.visible = not on
+
+
+## A sub page of the title (setup or info) is open, so Esc should go back to the home page.
+func on_sub_page() -> bool:
+	return title_screen.visible and (_setup.visible or _info.visible)
+
+
+func show_setup(adventure: bool) -> void:
+	_home.visible = false
+	_setup.visible = true
+	_setup_title.text = "CAMPAGNE" if adventure else "KLASSIEK"
+	_setup_sub.text = "Overleef 1 minuut op 't Pleintje en loop dan met je ijsje door de stad.\nHinderlagen bij de brug en in de speeltuin, en op het Henri Donutplein nog 1 minuut (+ eindbaas)." \
+		if adventure else "Kies een plein en een tijd. Haal er zoveel mogelijk van hun fiets."
+	for c in _classic_only:
+		c.visible = not adventure
 
 
 func _card(title: String, body: String) -> PanelContainer:
@@ -781,9 +870,9 @@ func _build_end() -> void:
 	_name_edit = LineEdit.new()
 	_name_edit.placeholder_text = "Jouw naam"
 	_name_edit.max_length = 14
-	_name_edit.custom_minimum_size = Vector2(240, 0)
 	_name_edit.add_theme_font_override("font", font)
 	_name_edit.add_theme_font_size_override("font_size", 28)
+	_name_edit.custom_minimum_size = Vector2(300, 64)
 	_name_row.add_child(_name_edit)
 	var save = _button("OPSLAAN", 26)
 	save.pressed.connect(func(): save_name.emit(_name_edit.text.strip_edges()))
@@ -804,6 +893,16 @@ func _build_end() -> void:
 	row.add_child(again)
 	v.add_child(row)
 	end_screen.visible = false
+
+
+## Touch never turns into mouse clicks in this project (emulate_mouse_from_touch is off), and a LineEdit only
+## starts editing (and opens the on-screen keyboard) on a mouse click, so on a phone or tablet do that ourselves.
+func _input(e: InputEvent) -> void:
+	if e is InputEventScreenTouch and e.pressed and end_screen.visible and _name_row.is_visible_in_tree() \
+			and _name_edit.get_global_rect().has_point(e.position):
+		_name_edit.grab_focus()
+		_name_edit.edit()
+		get_viewport().set_input_as_handled()
 
 
 func show_end(reason: String, rank: String, mode_label: String, score: int, stats: Dictionary, qualifies: bool) -> void:

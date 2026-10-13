@@ -104,8 +104,9 @@ func _ready() -> void:
 	game.ended.connect(_on_ended)
 
 	hud.start_pressed.connect(start_game)
-	hud.adventure_pressed.connect(func(): adventure = true; start_game())
-	hud.menu_pressed.connect(show_title)
+	hud.mode_selected.connect(_choose_mode)
+	hud.back_pressed.connect(_back_home)
+	hud.menu_pressed.connect(_back_to_menu)
 	hud.resume_pressed.connect(resume)
 	hud.option_changed.connect(_on_option)
 	hud.music_toggle.connect(func(): Sfx.toggle_mute())
@@ -136,6 +137,7 @@ func show_title() -> void:
 	hud.show_pause(false)
 	hud.hide_end()
 	hud.show_title(true)
+	hud.show_home()
 	hud.sync_options(settings)
 	game.state = "idle"
 	game.phase = ""
@@ -155,6 +157,27 @@ func show_title() -> void:
 	world.set_dusk(false, 0.01)
 	Sfx.restart_music(false)
 	Sfx.set_intensity("title")
+
+
+## Title step 1 -> 2: classic or the story (adventure), then its options.
+func _choose_mode(adv: bool) -> void:
+	adventure = adv
+	Sfx.click()
+	hud.show_setup(adv)
+	hud.title_scores(_load_scores(), _mode_label())
+
+
+## MENU from the pause or end screen: back to the options of the mode you were playing.
+func _back_to_menu() -> void:
+	var adv := adventure
+	show_title()
+	_choose_mode(adv)
+
+
+func _back_home() -> void:
+	adventure = false
+	Sfx.click()
+	hud.show_home()
 
 
 func start_game() -> void:
@@ -207,7 +230,7 @@ func _rank(score: float) -> String:
 
 func _mode_label() -> String:
 	if adventure:
-		return "AVONTUUR · %s%s" % [Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
+		return "CAMPAGNE · %s%s" % [Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 	return "%s · %d min · %s%s" % [Config.MAP.label, settings.round_time / 60, Config.LEVELS[settings.level].label, "" if settings.boss else " · zonder eindbaas"]
 
 
@@ -301,6 +324,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
 		if e.keycode == KEY_ESCAPE and mode == "playing":
 			pause()
+		elif e.keycode == KEY_ESCAPE and mode == "title" and hud.on_sub_page():
+			_back_home()
 	elif e is InputEventKey and not e.pressed:
 		inp.keys_down.erase(e.keycode)
 	if mode != "playing":
@@ -453,6 +478,11 @@ func _parse_auto_args() -> void:
 			_auto.shots = Array(a.substr(8).split(",")).map(func(x): return float(x))
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
+		elif a.begins_with("--menu="):   # open the title's second step: klassiek | campagne | info
+			if a.substr(7) == "info":
+				hud.show_info(true)
+			else:
+				_choose_mode(a.substr(7) == "campagne")
 		elif a.begins_with("--map="):   # pleintje | donut
 			settings.map = a.substr(6)
 		elif a.begins_with("--weapon="):   # start with this weapon (1 = katapult ... 5 = ijsmachine)
