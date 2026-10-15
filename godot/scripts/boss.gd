@@ -560,7 +560,7 @@ func _step_attack(dt: float, speed_mul: float) -> void:
 		_aim = move_toward(_aim, 0.0, dt * 1.6)
 		_throw = move_toward(_throw, 0.0, dt * 2.5)
 		_elbow_l = move_toward(_elbow_l, 0.0, dt * 2.5)
-		if _attack_cd <= 0:
+		if _attack_cd <= 0 and not settings.get("peaceful", false):   # chill level: he just stands there and takes it
 			var kind = "rocket" if randf() < 0.62 else "tyre"
 			_attack = {"kind": kind, "stage": "raise", "t": 0.0, "fired": 0}
 			var broken = 5 - bikes_left()

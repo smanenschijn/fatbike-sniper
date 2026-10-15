@@ -34,6 +34,7 @@ var kick := 0.0
 var zoom := 0.0
 var time := 0.0
 var root: Node3D
+var infinite := false   # chill level: never empty, never reload
 var spin := 0.0        # ijsmachine barrel speed 0..1
 var _burst_left := 0   # touch: a tap fires a short burst ...
 var _burst_dir := Vector3.ZERO   # ... at the tapped spot
@@ -151,7 +152,7 @@ func try_fire(inp) -> bool:
 		return false
 	if not inp.fire_pressed and not auto and w.key != "katapult":
 		return false
-	if w.mag >= 0:
+	if w.mag >= 0 and not infinite:
 		w.ammo -= 1
 	w.cooldown = w.fire_delay
 	if auto:   # slow at first, full rate once the barrels have spun up
@@ -203,6 +204,8 @@ func step(dt: float, inp) -> void:
 
 	for x in list:
 		x.cooldown = maxf(0.0, x.cooldown - dt)
+		if infinite and x.cooldown <= 0.0 and x.parts.has("rocket"):   # the next rocket is simply there
+			x.parts.rocket.visible = true
 		x.anim = maxf(0.0, x.anim - dt / maxf(0.2, x.fire_delay))
 	if w.reloading > 0:
 		w.reloading -= dt
@@ -274,7 +277,7 @@ func hud_state() -> Dictionary:
 	return {
 		"index": index, "key": w.key, "zoom": zoom > 0.6,
 		"reload": (1.0 - w.reloading / w.reload) if w.reloading > 0 else -1.0,
-		"list": list.map(func(x): return {"name": x.name, "ammo": x.ammo, "reserve": x.reserve_left, "mag": x.mag}),
+		"list": list.map(func(x): return {"name": x.name, "ammo": x.ammo, "reserve": x.reserve_left, "mag": -1 if infinite else x.mag}),
 	}
 
 

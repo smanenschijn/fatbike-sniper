@@ -88,8 +88,11 @@ func reset(p_round_time: float, p_level: String, p_boss := true, p_adventure := 
 	level_key = p_level
 	level = Config.LEVELS[p_level]
 	max_hearts = level.hearts
+	riders.peaceful = level.get("chill", false)
+	weapons.infinite = level.get("chill", false)
 	riders.settings = {"accuracy": level.accuracy, "windup": level.windup}
-	boss.settings = {"accuracy": level.accuracy, "windup": level.windup, "hp": level.boss_hp, "speed": level.speed}
+	boss.settings = {"accuracy": level.accuracy, "windup": level.windup, "hp": level.boss_hp, "speed": level.speed,
+		"peaceful": level.get("chill", false)}
 	boss.reset()
 	world.fold_parasol(false)
 	world.set_dusk(false, 0.01)
@@ -677,6 +680,8 @@ func _score_kills(kills: Array) -> void:
 
 func on_player_hit(knife_vel: Vector3, reason := "NEERGESTOKEN!") -> void:
 	if state != "playing" and state != "boss":
+		return
+	if level.get("chill", false):   # can't be hit: nothing to lose
 		return
 	hearts -= 1
 	hud.set_hearts(hearts, max_hearts)

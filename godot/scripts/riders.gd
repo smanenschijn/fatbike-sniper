@@ -40,6 +40,7 @@ var player_fwd := Vector3.FORWARD
 # knife can be seen coming and shot down.
 var cone_yaw := 0.0
 var cone_half := PI
+var peaceful := false   # chill level: nobody throws
 var throw_gap := 0.0   # > 0: one throw at a time, at least this many seconds apart (adventure walk)
 var _throw_cd := 0.0
 var settings := {"accuracy": 0.6, "windup": 0.75}
@@ -368,6 +369,8 @@ func can_throw(r: Dictionary) -> bool:
 
 ## May a new throw start now (one at a time while throw_gap is set)?
 func _may_start_throw(r: Dictionary) -> bool:
+	if peaceful:
+		return false
 	if throw_gap > 0.0 and (_throw_cd > 0.0 or list.any(func(x): return x.get("windup", 0.0) > 0.0)):
 		return false
 	return can_throw(r)

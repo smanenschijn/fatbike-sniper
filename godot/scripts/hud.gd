@@ -723,7 +723,7 @@ func _build_setup() -> void:
 	_setup.add_child(mp)
 	_classic_only = [mp]
 	for group in [["TIJD", "round_time", [[60, "1 MIN"], [180, "3 MIN"], [300, "5 MIN"]]],
-			["NIVEAU", "level", [["easy", "MAKKELIJK"], ["normal", "NORMAAL"], ["hard", "MOEILIJK"]]],
+			["NIVEAU", "level", [["easy", "MAKKELIJK"], ["normal", "NORMAAL"], ["hard", "MOEILIJK"], ["chill", "CHILL"]]],
 			["EINDBAAS", "boss", [[true, "AAN"], [false, "UIT (VUURWERK)"]]]]:
 		var p = _panel()
 		p.mouse_filter = Control.MOUSE_FILTER_PASS

@@ -485,6 +485,8 @@ func _parse_auto_args() -> void:
 				_choose_mode(a.substr(7) == "campagne")
 		elif a.begins_with("--map="):   # pleintje | donut
 			settings.map = a.substr(6)
+		elif a.begins_with("--level="):   # easy | normal | hard | chill
+			settings.level = a.substr(8)
 		elif a.begins_with("--weapon="):   # start with this weapon (1 = katapult ... 5 = ijsmachine)
 			_auto.weapon = int(a.substr(9)) - 1
 	if _auto.has("shot"):

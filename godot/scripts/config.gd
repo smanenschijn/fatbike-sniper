@@ -19,6 +19,8 @@ const PITCH_MAX := deg_to_rad(55.0)
 const LEVELS := {
 	"easy": {"label": "Makkelijk", "windup": 0.95, "spawn": 1.35, "alive": 0.7, "attack": 0.5, "speed": 0.88, "accuracy": 0.35, "retaliate": 0.4, "hearts": 5, "bt_fill": 1.35, "score": 0.8, "boss_hp": 0.7},
 	"normal": {"label": "Normaal", "windup": 0.75, "spawn": 1.0, "alive": 1.0, "attack": 1.0, "speed": 1.0, "accuracy": 0.6, "retaliate": 0.7, "hearts": 3, "bt_fill": 1.0, "score": 1.0, "boss_hp": 1.0},
+	# chill: no hearts, nobody throws, endless ammo. Just shooting.
+	"chill": {"label": "Chill", "chill": true, "windup": 0.75, "spawn": 0.85, "alive": 1.2, "attack": 0.0, "speed": 1.0, "accuracy": 0.0, "retaliate": 0.0, "hearts": 0, "bt_fill": 1.5, "score": 1.0, "boss_hp": 0.8},
 	"hard": {"label": "Moeilijk", "windup": 0.55, "spawn": 0.72, "alive": 1.3, "attack": 1.5, "speed": 1.15, "accuracy": 0.8, "retaliate": 0.9, "hearts": 3, "bt_fill": 0.8, "score": 1.3, "boss_hp": 1.35},
 }
 
