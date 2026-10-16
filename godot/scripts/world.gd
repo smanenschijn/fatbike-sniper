@@ -36,6 +36,7 @@ func _ready() -> void:
 func load_map() -> void:
 	_unload()
 	square = _instance(Config.MAP.model, Vector3.ZERO)
+	_merge_static(square)
 	_sit_at(square)
 	sun.look_at_from_position((Config.MAP.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
 	if not ijsje_fall.is_empty():
@@ -61,6 +62,8 @@ func load_adventure() -> void:
 	var cap = models.donut.find_child("Cap_E", true, false)
 	if cap:
 		cap.queue_free()
+	for m in models.values():
+		_merge_static(m)
 	square = models.pleintje
 	_sit_at(square)
 	sun.look_at_from_position((Config.MAPS.pleintje.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
@@ -103,6 +106,53 @@ func _instance(path: String, at: Vector3) -> Node3D:
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mesh.create_trimesh_collision()
 	return m
+
+
+const MERGE_CELL := 32.0
+
+
+## Fewer draw calls (the web build is limited by them): glue the model's static meshes together per material,
+## per MERGE_CELL x MERGE_CELL metres so far-away blocks still get culled. The original MeshInstance3D nodes stay,
+## without a mesh, so their collision bodies and names (markers) keep working. Parasols keep their own meshes (they fold).
+## Web only for now: the merged blocks lose Godot's automatic LODs, a fair trade in WebGL but untested on the phone apps.
+func _merge_static(m: Node3D) -> void:
+	if not OS.has_feature("web"):
+		return
+	var inv := m.global_transform.affine_inverse()
+	var groups := {}
+	for node in m.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null or mi.skin != null or _keep_separate(mi, m):
+			continue
+		if range(mi.mesh.get_surface_count()).any(func(si): return mi.mesh.surface_get_primitive_type(si) != Mesh.PRIMITIVE_TRIANGLES):
+			continue
+		var xf := inv * mi.global_transform
+		var cell := Vector2i(floori(xf.origin.x / MERGE_CELL), floori(xf.origin.z / MERGE_CELL))
+		for si in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(si)
+			var fmt: int = mi.mesh.surface_get_format(si) & (Mesh.ARRAY_FORMAT_TANGENT | Mesh.ARRAY_FORMAT_COLOR | Mesh.ARRAY_FORMAT_TEX_UV | Mesh.ARRAY_FORMAT_TEX_UV2)
+			var key := "%d|%d|%d|%d" % [mat.get_instance_id() if mat else 0, cell.x, cell.y, fmt]
+			if not groups.has(key):
+				groups[key] = {"mat": mat, "parts": []}
+			groups[key].parts.append([mi.mesh, si, xf])
+		mi.mesh = null
+	for g in groups.values():
+		var st := SurfaceTool.new()
+		for part in g.parts:
+			st.append_from(part[0], part[1], part[2])
+		var merged := MeshInstance3D.new()
+		merged.mesh = st.commit()
+		merged.material_override = g.mat
+		merged.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		m.add_child(merged)
+
+
+func _keep_separate(n: Node, root: Node) -> bool:
+	while n and n != root:
+		if n.is_queued_for_deletion() or not (n as Node3D).visible or "Parasol" in n.name:
+			return true
+		n = n.get_parent()
+	return false
 
 
 func _sit_at(m: Node3D) -> void:

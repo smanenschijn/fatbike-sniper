@@ -73,6 +73,11 @@ func _ready() -> void:
 	add_child(camera)
 	camera.position = world.eye
 	camera.current = true
+	# Web: the browser hands us a canvas at the screen's full pixel density (a retina laptop: ~5 megapixels).
+	# Render the 3D world at no more than WEB_3D_PIXELS so the GPU keeps up; the HUD stays sharp.
+	if OS.has_feature("web"):
+		get_viewport().size_changed.connect(_fit_3d_resolution)
+		_fit_3d_resolution()
 
 	# bullet-time post-process: a full-screen shader between the 3D view and the HUD
 	var post_layer = CanvasLayer.new()
@@ -373,6 +378,14 @@ func _notification(what: int) -> void:
 		pause()
 
 
+const WEB_3D_PIXELS := 2.2e6
+
+
+func _fit_3d_resolution() -> void:
+	var px := DisplayServer.window_get_size()
+	get_viewport().scaling_3d_scale = clampf(sqrt(WEB_3D_PIXELS / maxf(1.0, px.x * px.y)), 0.35, 1.0)
+
+
 # ------------------------------------------------------------ loop
 
 const DEMO_DIFF := {"spawn_interval": 1.4, "max_alive": 8, "attack_chance": 0.0, "speed_mul": 1.1}
@@ -465,6 +478,9 @@ func _parse_auto_args() -> void:
 			_auto.phase = a.substr(8)
 		elif a.begins_with("--routeat="):  # with --phase=route: skip to this many metres along the walk
 			_auto.route_at = float(a.substr(10))
+		elif a == "--boom":   # perf test: a bazooka explosion in front of you every 1.5 s, frame-time stats per second
+			_auto.boom = 0.0
+			_auto.play = true
 		elif a == "--god":   # can't lose hearts (smoke tests)
 			_auto.god = true
 		elif a == "--noboss":
@@ -503,6 +519,25 @@ func _auto_step(dt: float) -> void:
 	if _auto.has("weapon") and mode == "playing" and game.state == "playing":
 		weapons.select(_auto.weapon, true)
 		_auto.erase("weapon")
+	if _auto.has("boom") and mode == "playing" and game.state == "playing":
+		var vrid := get_viewport().get_viewport_rid()
+		if not _auto.has("perf"):
+			RenderingServer.viewport_set_measure_render_time(vrid, true)
+			_auto.perf = []
+			_auto.calls = 0
+		_auto.boom += dt
+		_auto.perf.append(dt)
+		_auto.calls = maxi(_auto.calls, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
+		if _auto.boom > 1.5:
+			_auto.boom = 0.0
+			var fwd := Vector3(-sin(game.view_yaw), 0, -cos(game.view_yaw))
+			game._explode(world.eye + fwd * randf_range(12.0, 25.0) + Vector3(randf_range(-4, 4), -world.eye.y, 0), {"w": weapons.list[3]})
+		if _auto.perf.size() >= 60:
+			var f: Array = _auto.perf
+			print("[perf] avg=%.1fms max=%.1fms draw_calls<=%d render_cpu=%.1fms triangles=%dk" % [f.reduce(func(a, b): return a + b) / f.size() * 1000.0,
+				f.max() * 1000.0, _auto.calls, RenderingServer.viewport_get_measured_render_time_cpu(vrid), Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000])
+			_auto.perf = []
+			_auto.calls = 0
 	if _auto.get("god", false) and mode == "playing":
 		game.hearts = maxi(game.hearts, 2)
 	if _auto.has("phase") and game.state == "playing" and not _auto.has("phase_done"):

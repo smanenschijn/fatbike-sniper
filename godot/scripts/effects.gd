@@ -8,6 +8,7 @@ var shake := 0.0
 
 var _debris: Array = []
 var _particles: Array = []
+var _pools := {}   # material name -> MultiMeshInstance3D: all billboard particles of one kind in one draw call
 var _lights: Array = []
 var _popups: Array = []
 var _fireworks: Array = []
@@ -26,6 +27,21 @@ func setup(cam: Camera3D, layer: Control, font: Font, font_ui: Font) -> void:
 	_mats.fire = _billboard(_radial_tex(Color(1, 0.95, 0.7, 1), Color(1, 0.5, 0.1, 0)), true)
 	_mats.flash = _billboard(_star_tex(), true)
 	_mats.star = _billboard(_star_tex(Color("ffd23f")), false)
+	_mats.fire.render_priority = 1   # glow on top of the smoke
+	_mats.flash.render_priority = 2
+	for k in ["puff", "fire", "flash"]:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = _quad
+		mm.instance_count = 64
+		mm.visible_instance_count = 0
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = _mats[k]
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
+		_pools[k] = mmi
 
 
 # ------------------------------------------------------------ textures / materials
@@ -63,6 +79,8 @@ func _billboard(tex: Texture2D, additive: bool) -> StandardMaterial3D:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.vertex_color_use_as_albedo = true   # the per-particle tint comes in as the MultiMesh instance colour
+	m.vertex_color_is_srgb = true
 	m.no_depth_test = false
 	m.disable_receive_shadows = true
 	if additive:
@@ -147,18 +165,7 @@ func _update_debris(dt: float) -> void:
 # ------------------------------------------------------------ particles
 
 func _spawn(mat: String, col: Color, size: float, pos: Vector3, vel: Vector3, life: float, grow := 1.0, gravity := 0.0, drag := 1.0) -> void:
-	var mi = MeshInstance3D.new()
-	mi.mesh = _quad
-	mi.material_override = _mats[mat]
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	mi.global_position = pos
-	mi.scale = Vector3.ONE * size
-	# per-instance tint via a tiny material override copy (cheap at our counts)
-	var m: StandardMaterial3D = _mats[mat].duplicate()
-	m.albedo_color = col
-	mi.material_override = m
-	_particles.append({"n": mi, "vel": vel, "life": life, "age": 0.0, "grow": grow, "base": size, "gravity": gravity, "drag": drag, "alpha": col.a})
+	_particles.append({"mat": mat, "col": col, "pos": pos, "vel": vel, "life": life, "age": 0.0, "grow": grow, "base": size, "gravity": gravity, "drag": drag})
 
 
 func puff(pos: Vector3, col := Color("d8d0c0"), n := 5, size := 0.6) -> void:
@@ -186,6 +193,10 @@ func muzzle_flash(pos: Vector3, size := 0.5) -> void:
 
 
 func flash_light(pos: Vector3, col: Color, energy: float, life: float, rng := 12.0) -> void:
+	# The web build (WebGL / Compatibility renderer) draws every mesh a light touches once more, and the first light
+	# stalls on a shader compile: the flash sprites carry the effect there on their own.
+	if OS.has_feature("web"):
+		return
 	var l = OmniLight3D.new()
 	l.light_color = col
 	l.light_energy = energy
@@ -291,15 +302,13 @@ func _update_particles(dt: float) -> void:
 					n.queue_free()
 				_particles.remove_at(i)
 			continue
-		var n: MeshInstance3D = p.n
+		if k >= 1.0:
+			_particles.remove_at(i)
+			continue
 		p.vel.y -= p.gravity * dt
 		p.vel *= pow(p.drag, dt * 60.0)
-		n.position += p.vel * dt
-		n.scale = Vector3.ONE * p.base * (1.0 + (p.grow - 1.0) * k)
-		n.transparency = clampf(k, 0.0, 1.0)
-		if k >= 1.0:
-			n.queue_free()
-			_particles.remove_at(i)
+		p.pos += p.vel * dt
+	_draw_particles()
 	for i in range(_lights.size() - 1, -1, -1):
 		var l: Dictionary = _lights[i]
 		l.age += dt
@@ -307,6 +316,39 @@ func _update_particles(dt: float) -> void:
 		if l.age >= l.life:
 			l.l.queue_free()
 			_lights.remove_at(i)
+
+
+## Write the live particles into their MultiMeshes (one draw call per kind), rebuilt every frame.
+func _draw_particles() -> void:
+	var counts := {}
+	for k in _pools:
+		counts[k] = 0
+	for p in _particles:
+		if not p.has("ring"):
+			counts[p.mat] += 1
+	for k in _pools:
+		var mm: MultiMesh = (_pools[k] as MultiMeshInstance3D).multimesh
+		if counts[k] > mm.instance_count:
+			mm.instance_count = nearest_po2(counts[k])
+		mm.visible_instance_count = counts[k]
+		(_pools[k] as MultiMeshInstance3D).visible = counts[k] > 0
+		counts[k] = 0
+	var boxes := {}
+	for p in _particles:
+		if p.has("ring"):
+			continue
+		var k: String = p.mat
+		var mm: MultiMesh = (_pools[k] as MultiMeshInstance3D).multimesh
+		var i: int = counts[k]
+		counts[k] = i + 1
+		var t: float = minf(p.age / p.life, 1.0)
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * p.base * (1.0 + (p.grow - 1.0) * t)), p.pos))
+		# no fade-out: the old per-node `transparency` fade never showed on these alpha materials, and this keeps that look
+		mm.set_instance_color(i, p.col)
+		var box := AABB(p.pos - Vector3.ONE, Vector3.ONE * 2.0)   # billboards drop the scale: always a 1 m quad
+		boxes[k] = boxes[k].merge(box) if boxes.has(k) else box
+	for k in boxes:
+		(_pools[k] as MultiMeshInstance3D).custom_aabb = boxes[k]   # tight bounds: right culling and depth sorting
 
 
 # ------------------------------------------------------------ popups / bubbles (screen space)
@@ -420,14 +462,13 @@ func clear() -> void:
 		if p.has("ring"):
 			for n in p.ring:
 				n.queue_free()
-		else:
-			p.n.queue_free()
 	for l in _lights:
 		l.l.queue_free()
 	for p in _popups:
 		p.lb.queue_free()
 	_debris.clear()
 	_particles.clear()
+	_draw_particles()
 	_fireworks.clear()
 	_lights.clear()
 	_popups.clear()
