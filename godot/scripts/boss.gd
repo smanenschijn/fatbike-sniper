@@ -8,11 +8,17 @@ extends Node3D
 
 signal player_hit(vel: Vector3, reason: String)
 
-# Where he stands and roams (|x| within boss_x, z within boss_z) and where his bikes ride in from: per square.
+# Where he stands and roams (|x| within boss_x, z within boss_z, both relative to the square: Config.OFFSET)
+# and where his bikes ride in from: per square.
 var SPOT: Vector3:
 	get: return Config.MAP.boss_spot
 const MODEL_SCALE := 1.3
 const BIKE_SCALE := 2.2
+# The room he takes up (model space, he faces +X): legs and hips low down, shoulders and arms ~9 m wide higher up.
+# Buildings, trees and lamp posts are in the way; benches, bins and the fountain basin he steps over.
+const LEGS := {"r": 1.8, "h": 3.0, "at": Vector3(0.3, 2.5, 0)}
+const UPPER := {"half": Vector3(2.4, 3.5, 4.6), "at": Vector3(0.8, 7.5, 0)}
+const SOFT := ["Bunting", "LampLine", "Flag"]  # strung across the square: he walks straight through
 const BIKES := ["LegL", "LegR", "Torso", "ArmL", "ArmR"]
 const PARTS := ["LegL", "LegR", "Torso", "ArmL", "ArmR", "Head"]
 const PART_NAMES := {"LegL": "LINKERBEEN", "LegR": "RECHTERBEEN", "Torso": "ROMP", "ArmL": "LINKERARM", "ArmR": "RAKETARM", "Head": "HOOFD"}
@@ -84,6 +90,7 @@ var _kneel := 0.0
 var _attack := {}
 var _attack_cd := 3.0
 var _held_tyre: Node3D = null
+var _soft: Array[RID] = []  # collision of the SOFT decorations, ignored by fits()
 
 # intro
 var _intro := {}
@@ -173,6 +180,7 @@ func reset() -> void:
 	model.position = SPOT
 	model.rotation = Vector3(0, _yaw, 0)
 	_target = SPOT
+	_find_soft()
 	_eye_glow(1.0)
 
 
@@ -512,11 +520,7 @@ func _step_fight(dt: float) -> void:
 	_move_t -= dt
 	if _move_t <= 0 and _attack.is_empty():
 		_move_t = randf_range(3.5, 6.0)
-		var here = signf(model.position.x) if absf(model.position.x) > 0.5 else (1.0 if randf() < 0.5 else -1.0)
-		var side = here if randf() < 0.45 else -here
-		var ax: Vector2 = Config.MAP.boss_x
-		var az: Vector2 = Config.MAP.boss_z
-		_target = Vector3(side * randf_range(ax.x, ax.y), 0, randf_range(az.x, az.y))
+		_target = _pick_target()
 	var to = _target - model.position
 	to.y = 0
 	_moving = to.length() > 0.3 and _attack.get("kind", "") != "rocket"
@@ -541,6 +545,63 @@ func _step_fight(dt: float) -> void:
 	model.rotation.y = _yaw
 	# attacks
 	_step_attack(dt, speed_mul)
+
+
+## A new spot on his patch of the square (often the other side) that he fits on and can walk to in a straight
+## line without going through a building; stays put when none turns up.
+func _pick_target() -> Vector3:
+	var o := Config.OFFSET
+	var ax: Vector2 = Config.MAP.boss_x
+	var az: Vector2 = Config.MAP.boss_z
+	var rel := model.position - o
+	var here = signf(rel.x) if absf(rel.x) > 0.5 else (1.0 if randf() < 0.5 else -1.0)
+	var stuck := not fits(model.position)
+	for i in 16:
+		var side = here if randf() < 0.45 else -here
+		var p := o + Vector3(side * randf_range(ax.x, ax.y), 0, randf_range(az.x, az.y))
+		p.y = model.position.y
+		if fits(p) and (stuck or fits(model.position, p - model.position)):
+			return p
+	return model.position
+
+
+## Does he fit at `pos` (facing the player)? With `motion`: can he walk from `pos` along it without bumping
+## into anything?
+func fits(pos: Vector3, motion := Vector3.ZERO) -> bool:
+	var d := player_eye - pos
+	var basis := Basis(Vector3.UP, atan2(-d.z, d.x))
+	var space := get_world_3d().direct_space_state
+	var legs := CylinderShape3D.new()
+	legs.radius = LEGS.r
+	legs.height = LEGS.h
+	var upper := BoxShape3D.new()
+	upper.size = UPPER.half * 2.0
+	for sh in [[legs, LEGS.at], [upper, UPPER.at]]:
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = sh[0]
+		q.transform = Transform3D(basis, pos + basis * (sh[1] as Vector3))
+		q.exclude = _soft
+		if motion == Vector3.ZERO:
+			if not space.intersect_shape(q, 1).is_empty():
+				return false
+		else:
+			q.motion = motion
+			if space.cast_motion(q)[0] < 1.0:
+				return false
+	return true
+
+
+func _find_soft() -> void:
+	_soft.clear()
+	if not get_parent():
+		return
+	for body in get_parent().find_children("*", "StaticBody3D", true, false):
+		var node: Node = body
+		while node and node != get_parent():
+			if SOFT.any(func(w): return String(node.name).begins_with(w)):
+				_soft.append((body as StaticBody3D).get_rid())
+				break
+			node = node.get_parent()
 
 
 func _stomp(side: String) -> void:

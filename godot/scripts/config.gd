@@ -44,7 +44,7 @@ static var MAPS := {
 			{"name": "alleyNW", "spawn": B(-13.25, 38), "mouth": B(-13.25, 15), "weight": 1.5},
 			{"name": "alleyE", "spawn": B(42, 7.25), "mouth": B(21, 7.25), "weight": 1.5},
 		],
-		"boss_spot": Vector3(-6.0, 0, -10.0), "boss_x": Vector2(5.0, 8.5), "boss_z": Vector2(-11.5, -8.5),
+		"boss_spot": Vector3(3.0, 0, -10.5), "boss_x": Vector2(0.0, 9.0), "boss_z": Vector2(-12.5, -7.0),
 		"boss_entries": {"LegL": "east", "LegR": "west", "Torso": "north", "ArmL": "alleyE", "ArmR": "alleyNW"},
 	},
 	"donut": {
@@ -216,9 +216,7 @@ static func use_map(id: String, offset := Vector3.ZERO) -> void:
 static func _shifted(m: Dictionary, o: Vector3) -> Dictionary:
 	var s := m.duplicate(true)
 	s.center += o
-	s.boss_spot += o
-	s.boss_x += Vector2(o.x, o.x)
-	s.boss_z += Vector2(o.z, o.z)
+	s.boss_spot += o   # boss_x / boss_z stay relative to the square: the boss adds OFFSET himself (|x| mirrors)
 	for e in s.entries:
 		e.spawn += o
 		e.mouth += o
