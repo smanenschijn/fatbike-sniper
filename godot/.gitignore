@@ -5,3 +5,4 @@ export_credentials.cfg
 /assets/models/*.glb
 /assets/models/weapons/*.glb
 /assets/audio/*.mp3
+/assets/textures/*.png
