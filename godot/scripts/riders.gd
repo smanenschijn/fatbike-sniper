@@ -592,6 +592,8 @@ func freeze(r: Dictionary, point: Vector3, col: Color, scoop: Node3D) -> void:
 	r.stuck = stuck
 
 
+const HANG := 0.65   # riders (and their hair) fall at reduced gravity: a long, flailing flight
+
 func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> void:
 	r.alive = false
 	var model: Node3D = r.model
@@ -609,10 +611,25 @@ func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> v
 		var head = body.find_child("Rider_Head", true, false) as Node3D
 		if hair and head:
 			var hc = head.global_transform * Vector3(0.05, 0.25, 0)
-			effects.add_debris(hair, hc, push * 0.6 + Vector3(randf_range(-1, 1), randf_range(6, 9), randf_range(-1, 1)), rand_ang.call(12.0), {"radius": 0.18, "life": 3.4, "bounce": 0.5})
+			effects.add_debris(hair, hc, push * 0.5 + Vector3(randf_range(-1, 1), randf_range(7, 8.5), randf_range(-1, 1)), rand_ang.call(12.0), {"radius": 0.18, "life": 4.2, "bounce": 0.5, "gravity": HANG})
 		var center = body.global_transform * Vector3(-0.1, 1.1, 0)
-		var up = randf_range(9, 13) if explode else randf_range(4.5, 6.5)
-		effects.add_debris(body, center, push + carry + Vector3(0, up, 0), rand_ang.call(14.0 if explode else 8.0), {"radius": 0.42 * root.scale.x, "life": 3.6, "stars": true})
+		var up = randf_range(9, 10.5) if explode else randf_range(6.5, 7.5)
+		var vel = (push + carry) * 0.7 + Vector3(0, up, 0)
+		# a backflip in the direction he flies (head first), with a bit of twist: no random tumbling
+		var flat_v = Vector3(vel.x, 0, vel.z)
+		var axis = Vector3.UP.cross(flat_v.normalized()) if flat_v.length() > 0.1 else Vector3.UP.cross(fwd)
+		var spin = axis * randf_range(3.5, 5.0) * (1.7 if explode else 1.0) + Vector3(0, randf_range(-2.5, 2.5), 0) + rand_ang.call(0.8)
+		var limbs = []
+		for ln in ["Rider_ArmL", "Rider_ArmR", "Rider_LegL", "Rider_LegR"]:
+			var n = body.find_child(ln, true, false) as Node3D
+			if n == null:
+				continue
+			var right = n.position.z > 0
+			var arm = ln.begins_with("Rider_Arm")
+			# rest direction shoulder -> wrist / hip -> ankle (model space, see blender/build_riders.py)
+			var rest = Vector3(0.3, -0.185, 0.155 if right else -0.155) if arm else (Vector3(0.325, -0.53, 0.04) if right else Vector3(0.005, -0.54, -0.04))
+			limbs.append({"node": n, "kind": "arm" if arm else "leg", "rest_dir": rest})
+		effects.add_debris(body, center, vel, spin, {"radius": 0.42 * root.scale.x, "lie_radius": 0.24 * root.scale.x, "life": 4.6, "stars": true, "limbs": limbs, "gravity": HANG})
 	if r.boombox:
 		var bb: Node3D = r.boombox
 		effects.add_debris(bb, bb.global_position, push + Vector3(0, 7, 0), rand_ang.call(10.0), {"radius": 0.25, "life": 3.4})

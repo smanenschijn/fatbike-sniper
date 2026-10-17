@@ -98,9 +98,64 @@ func add_debris(node: Node3D, center: Vector3, vel: Vector3, ang: Vector3, opts 
 	node.reparent(g, true)
 	for mi in node.find_children("*", "GeometryInstance3D", true, false):
 		(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_debris.append({"g": g, "vel": vel, "ang": ang, "radius": opts.get("radius", 0.3), "life": opts.get("life", 3.2),
-		"age": 0.0, "bounce": opts.get("bounce", 0.38), "stars": opts.get("stars", false), "landed": false})
+	var d := {"g": g, "vel": vel, "ang": ang, "radius": opts.get("radius", 0.3), "life": opts.get("life", 3.2),
+		"age": 0.0, "bounce": opts.get("bounce", 0.38), "stars": opts.get("stars", false), "landed": false,
+		"gravity": opts.get("gravity", 1.0)}
+	if opts.has("limbs"):   # a rider: flails in the air, lands flat on the ground like a starfish
+		d.body = node
+		d.lie_radius = opts.get("lie_radius", 0.22)
+		d.limbs = []
+		for l in opts.limbs:
+			var n: Node3D = l.node
+			var q := n.quaternion
+			d.limbs.append({"node": n, "kind": l.kind, "rest_dir": (l.rest_dir as Vector3).normalized(), "rest_q": q, "q": q,
+				"side": signf(n.position.z) if absf(n.position.z) > 0.01 else 1.0, "phase": randf() * TAU, "speed": randf_range(11.0, 14.0),
+				"sprawl": randf_range(-0.25, 0.25)})
+	_debris.append(d)
 	return g
+
+
+## Arms windmill and legs kick while a rider flies; once he is down they splay out (and a leg twitches).
+func _flail(d: Dictionary, dt: float) -> void:
+	var t: float = d.age
+	var down: bool = d.landed
+	for l in d.limbs:
+		var side: float = l.side
+		var dir: Vector3
+		if l.kind == "arm":
+			if down:
+				dir = Vector3(l.sprawl, 0.6, side)
+			else:
+				var a: float = l.phase + t * l.speed * side   # the arms go round in opposite directions: extra silly
+				var spread := 0.85 + 0.4 * sin(t * 9.0 + l.phase)
+				dir = Vector3(sin(a), cos(a), 0) * cos(spread) + Vector3(0, 0, side * sin(spread))
+		else:
+			if down:
+				var twitch := 0.0
+				if l.side > 0 and fmod(t + l.phase, 1.1) < 0.25:
+					twitch = sin(t * 40.0) * 0.35
+				dir = Vector3(0.2 + l.sprawl + twitch, -1.0, side * 0.5)
+			else:
+				var kick := sin(t * l.speed * 0.8 + (0.0 if side > 0 else PI)) * 0.9
+				dir = Basis(Vector3.BACK, kick) * (l.rest_dir as Vector3) + Vector3(0, 0, side * 0.35)
+		var target: Quaternion = Quaternion(l.rest_dir, dir.normalized()) * (l.rest_q as Quaternion)
+		if down:
+			l.q = (l.q as Quaternion).slerp(target, 1.0 - exp(-9.0 * dt))
+		else:   # follow the flailing exactly (smoothing would average the circles away), blending in from the riding pose
+			l.q = (l.rest_q as Quaternion).slerp(target, minf(1.0, t / 0.1))
+		(l.node as Node3D).quaternion = l.q
+	if down:
+		# roll onto back or belly: the body's up axis goes flat on the ground
+		var g: Node3D = d.g
+		var up: Vector3 = (d.body as Node3D).global_basis.y.normalized()
+		var flat := Vector3(up.x, 0, up.z)
+		if flat.length() < 0.15:   # landed upright or on his head: tip over along the chest
+			var x: Vector3 = (d.body as Node3D).global_basis.x
+			flat = Vector3(x.x, 0, x.z)
+		if flat.length() > 0.01:
+			var k := 1.0 - exp(-8.0 * dt)
+			g.basis = Basis(Quaternion.IDENTITY.slerp(Quaternion(up, flat.normalized()), k)) * g.basis
+		d.radius = lerpf(d.radius, d.lie_radius, 1.0 - exp(-6.0 * dt))
 
 
 ## Water surfaces (the adventure's gracht): [Rect2 on x/z, surface height]. Debris that lands there splashes and sinks.
@@ -128,13 +183,15 @@ func _update_debris(dt: float) -> void:
 		var g: Node3D = d.g
 		d.age += dt
 		var wl = water_level(g.position)
+		if d.has("limbs"):
+			_flail(d, dt)
 		if d.get("sinking", false):
 			g.position += Vector3(d.vel.x * 0.2, -0.6, d.vel.z * 0.2) * dt
 			if d.age > d.life:
 				g.queue_free()
 				_debris.remove_at(i)
 			continue
-		d.vel.y -= Config.GRAVITY * 1.5 * dt
+		d.vel.y -= Config.GRAVITY * 1.5 * d.gravity * dt
 		g.position += d.vel * dt
 		var w: float = d.ang.length()
 		if w > 0.0001:
@@ -151,6 +208,8 @@ func _update_debris(dt: float) -> void:
 				puff(Vector3(g.position.x, 0.1, g.position.z), Color("8a7a6a"), 4, 0.5)
 				if d.stars:
 					stars(g.position + Vector3(0, d.radius + 0.4, 0))
+				if d.has("limbs"):
+					d.ang = Vector3.ZERO
 			d.vel.y = absf(d.vel.y) * d.bounce
 			d.vel.x *= 0.72
 			d.vel.z *= 0.72
