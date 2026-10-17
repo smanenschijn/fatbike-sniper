@@ -269,6 +269,20 @@ func smoke_trail(pos: Vector3) -> void:
 	_spawn("puff", Color(0.75, 0.75, 0.75, 0.6), 0.35, pos, Vector3(0, 0.4, 0), 0.9, 3.0)
 
 
+## Exhaust of FATBIKETRON's leg boosters: embers and smoke from the flame tip, a ring of dust when it hits the ground.
+func thruster(tip: Vector3, vel: Vector3, ground_y: float, power: float) -> void:
+	_spawn("fire", Color("ffb040"), randf_range(0.35, 0.6) * power, tip, vel + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)), 0.18, 1.6)
+	if randf() < 0.35:
+		_spawn("fire", Color("ffd060"), 0.08, tip, Vector3(randf_range(-4, 4), randf_range(2, 6), randf_range(-4, 4)), 0.6, 0.5, Config.GRAVITY)
+	if tip.y - ground_y < 0.9:
+		var a := randf() * TAU
+		var out := Vector3(cos(a), 0, sin(a))
+		_spawn("puff", Color(0.72, 0.66, 0.58, 0.55), randf_range(0.5, 0.9), Vector3(tip.x, ground_y + 0.25, tip.z) + out * 0.4,
+			out * randf_range(3.0, 5.0) * power + Vector3(0, 0.6, 0), randf_range(0.6, 1.0), 2.6, 0.0, 0.93)
+	elif randf() < 0.4:
+		_spawn("puff", Color(0.5, 0.48, 0.46, 0.5), 0.5, tip, vel * 0.3 + Vector3(0, 0.8, 0), 0.9, 2.5, 0.0, 0.95)
+
+
 func explosion(pos: Vector3) -> void:
 	for i in 14:
 		_spawn("fire", Color("ffa030") if i % 3 else Color("fff0a0"), randf_range(1.2, 2.2),

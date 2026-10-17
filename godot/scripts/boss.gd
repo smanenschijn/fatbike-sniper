@@ -29,6 +29,8 @@ const HP := {"bike": 14.0, "Head": 22.0}
 const SHOUTS := ["IK BEN FATBIKETRON!", "HET PLEIN IS VAN ONS!", "TRING TRING, STERVELING!", "GEEF DAT IJSJE!",
 	"FIETSPAD? IK BEN HET FIETSPAD!", "25 KM/U IS VOOR WATJES!"]
 const PAIN := ["MIJN ACCU!", "AU, MIJN SPATBORD!", "WIE SLOOPT MIJN STUUR?!", "DIT IS GARANTIE!", "KRAS OP MIJN LAK!"]
+const BOOST_SHOUTS := ["WIE HEEFT ER BENEN NODIG?!", "TURBOSTAND AAN!", "RAKETBENEN, SUCKERS!"]
+const HOVER_SHOUTS := ["IK VLIEG GEWOON!", "KIJK MAMA, ZONDER BENEN!", "NU BEN IK EEN DRONE!"]
 const RAGE := ["NU BEN IK BOOS!", "ZONDER FIETSEN BEN IK NOG STEEDS GROOT!", "IK HEB GEEN TRAPONDERSTEUNING NODIG!"]
 
 # Hit capsules in the local space of a pivot node: [node, a, b, radius, part]. s = +1 left (-Z), -1 right (+Z).
@@ -91,6 +93,11 @@ var _attack := {}
 var _attack_cd := 3.0
 var _held_tyre: Node3D = null
 var _soft: Array[RID] = []  # collision of the SOFT decorations, ignored by fits()
+# rocket boosters on the stumps of shot-off legs: side -> {node, flame, core, light, power, puff}
+var _boosters := {}
+var _hover := 0.0       # metres the hips float up on the boosters
+var _sputter := 0.0     # > 0: the boosters cough and he sags
+var _sputter_cd := 6.0
 
 # intro
 var _intro := {}
@@ -181,6 +188,11 @@ func reset() -> void:
 	model.rotation = Vector3(0, _yaw, 0)
 	_target = SPOT
 	_find_soft()
+	for b in _boosters.values():
+		b.node.queue_free()
+	_boosters.clear()
+	_hover = 0.0
+	_sputter = 0.0
 	_eye_glow(1.0)
 
 
@@ -526,7 +538,7 @@ func _step_fight(dt: float) -> void:
 	_moving = to.length() > 0.3 and _attack.get("kind", "") != "rocket"
 	if _moving:
 		_phase += dt * 2.6 * speed_mul
-		var lifted = maxf(_lift.L, _lift.R)
+		var lifted = 0.6 if _boosters.size() == 2 else maxf(_lift.L, _lift.R)
 		model.position += to.normalized() * minf(to.length(), dt * 2.3 * speed_mul * (0.4 + lifted))
 	elif _lift.L > 0.02 or _lift.R > 0.02:
 		_phase += dt * 2.6  # finish the step
@@ -535,7 +547,7 @@ func _step_fight(dt: float) -> void:
 	var new_r = maxf(0.0, -s) if _moving or _lift.R > 0.02 else 0.0
 	for side in ["L", "R"]:
 		var nv = new_l if side == "L" else new_r
-		if _lift[side] > 0.05 and nv <= 0.0:
+		if _lift[side] > 0.05 and nv <= 0.0 and _boosters.size() < 2:
 			_stomp(side)
 		_lift[side] = nv
 	# face the player
@@ -543,6 +555,7 @@ func _step_fight(dt: float) -> void:
 	var want = atan2(-d.z, d.x)
 	_yaw = lerp_angle(_yaw, want, minf(1.0, dt * 2.0))
 	model.rotation.y = _yaw
+	_step_hover(dt)
 	# attacks
 	_step_attack(dt, speed_mul)
 
@@ -605,6 +618,9 @@ func _find_soft() -> void:
 
 
 func _stomp(side: String) -> void:
+	if _boosters.has(side):
+		_boosters[side].power = 1.6   # the stump lands on a burst of flame
+		return
 	var foot: Vector3 = (n["Boss_Knee" + side] as Node3D).global_transform * Vector3(-0.3, -1.9, 0)
 	foot.y = 0.1
 	effects.puff(foot, Color("9a8a78"), 5, 1.4)
@@ -980,7 +996,7 @@ func _break_bike(part: String) -> void:
 	effects.add_shake(0.6)
 	_stagger = 1.0
 	if part.begins_with("Leg"):
-		_kneel = minf(1.0, _kneel + 0.35)
+		_ignite(part.substr(3))
 	if bikes_left() == 0:
 		head_open = true
 		rage = true
@@ -989,6 +1005,167 @@ func _break_bike(part: String) -> void:
 		effects.add_shake(0.8)
 		effects.bubble(n.Boss_Neck, Vector3(0, 3.2, 0), RAGE.pick_random(), true, 2.4)
 		_attack_cd = minf(_attack_cd, 1.5)
+
+
+# ------------------------------------------------------------ rocket boosters (legs shot off)
+
+## The battery of a shot-off leg bike turns into a rocket under the stump.
+func _ignite(side: String) -> void:
+	var node := Node3D.new()
+	add_child(node)
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color("3a3d44")
+	metal.metallic = 0.8
+	metal.roughness = 0.35
+	var nozzle := MeshInstance3D.new()
+	var nm := CylinderMesh.new()
+	nm.top_radius = 0.32
+	nm.bottom_radius = 0.5
+	nm.height = 0.6
+	nozzle.mesh = nm
+	nozzle.material_override = metal
+	nozzle.position.y = -0.1
+	node.add_child(nozzle)
+	var rim := MeshInstance3D.new()
+	var rm := TorusMesh.new()
+	rm.inner_radius = 0.42
+	rm.outer_radius = 0.52
+	rim.mesh = rm
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = Color("ff7a1a")
+	glow.emission_enabled = true
+	glow.emission = Color("ff7a1a")
+	glow.emission_energy_multiplier = 3.0
+	rim.material_override = glow
+	rim.position.y = -0.4
+	node.add_child(rim)
+	var flame := _flame_mesh(0.62, Color(1.0, 0.32, 0.04, 0.6))
+	var core := _flame_mesh(0.3, Color(1.0, 0.78, 0.3, 0.9))
+	node.add_child(flame)
+	node.add_child(core)
+	var light: OmniLight3D = null
+	if not OS.has_feature("web"):   # see Effects.flash_light: lights are costly in the web build
+		light = OmniLight3D.new()
+		light.light_color = Color("ff9a40")
+		light.omni_range = 9.0
+		light.position.y = -1.2
+		node.add_child(light)
+	_boosters[side] = {"node": node, "flame": flame, "core": core, "light": light, "power": 2.2, "puff": 0.0}
+	_place_booster(side)
+	var at: Vector3 = node.global_position
+	effects.flash_light(at, Color("ffb050"), 10.0, 0.4, 20.0)
+	effects.puff(at + Vector3(0, -1, 0), Color("fff0c0"), 8, 1.2)
+	Sfx.rocket()
+	effects.bubble(n.Boss_Neck, Vector3(0, 3.2, 0), (HOVER_SHOUTS if _boosters.size() == 2 else BOOST_SHOUTS).pick_random(), true, 2.2)
+	if _boosters.size() == 2:
+		_sputter_cd = randf_range(4.0, 7.0)
+
+
+## A cone of additive flame along -Y, wide at the nozzle.
+func _flame_mesh(r: float, col: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var m := CylinderMesh.new()
+	m.top_radius = r
+	m.bottom_radius = 0.02
+	m.height = 1.0
+	m.radial_segments = 12
+	m.rings = 1
+	mi.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = col
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+## Fixed to the end of the stump (the bare shin left after its bike flew off), pointing along the shin.
+func _place_booster(side: String) -> void:
+	var b: Dictionary = _boosters[side]
+	var knee: Node3D = n["Boss_Knee" + side]
+	if not b.has("end"):
+		b.end = _stump_end(side)
+	var foot: Vector3 = knee.global_transform * (b.end as Vector3)
+	var down: Vector3 = (foot - knee.global_position).normalized()
+	var x := down.cross(Vector3.FORWARD).normalized() if absf(down.z) < 0.9 else down.cross(Vector3.RIGHT).normalized()
+	(b.node as Node3D).global_transform = Transform3D(Basis(x, -down, x.cross(-down)), foot)
+
+
+## Knee-space point at the bottom of the shin bone, a little inside it so the nozzle sits over the end.
+func _stump_end(side: String) -> Vector3:
+	var dir := Vector3(-0.3, -1.9, 0).normalized()
+	var shin: MeshInstance3D = n.get("Boss_Leg%s_Frame_Lower" % side)
+	if shin == null or shin.mesh == null:
+		return dir * 1.6
+	var box: AABB = shin.transform * shin.get_aabb()
+	var reach := 0.0
+	for i in 8:
+		reach = maxf(reach, box.get_endpoint(i).dot(dir))
+	var c := box.get_center()
+	return c - dir * c.dot(dir) + dir * (reach - 0.25)
+
+
+## Float on the boosters: hop on one leg, hover (bobbing, wobbling, now and then coughing) on none, drop when dying.
+func _step_hover(dt: float) -> void:
+	if _boosters.is_empty():
+		return
+	var want := 0.0
+	var dying := state == "dying"
+	if dying:
+		# the boosters splutter out while he blows up, then he drops
+		for b in _boosters.values():
+			b.power = 0.0 if _die.t > 2.4 else (randf_range(0.2, 1.4) if randf() < 0.3 else b.power)
+		want = 0.0 if _die.t > 2.4 else 0.9
+	elif _boosters.size() == 2:
+		_sputter_cd -= dt
+		if _sputter_cd <= 0.0:
+			_sputter_cd = randf_range(5.0, 9.0)
+			_sputter = 0.5
+			Sfx.clank()
+		if _sputter > 0.0:
+			_sputter = maxf(0.0, _sputter - dt)
+			if _sputter == 0.0:   # roars back to life
+				for b in _boosters.values():
+					b.power = 2.0
+				effects.add_shake(0.25)
+				Sfx.rocket()
+		want = (0.3 if _sputter > 0.0 else 1.8) + sin(_t * 2.1) * 0.3 + sin(_t * 5.3) * 0.08
+	else:
+		# hopping: the stump's booster kicks when the good leg pushes off
+		var good := "R" if _boosters.has("L") else "L"
+		want = _lift[good] * 0.5
+	var rate := 9.0 if want < _hover and (dying or _sputter > 0.0) else 3.0
+	_hover = lerpf(_hover, want, minf(1.0, dt * rate))
+	var ground := model.global_position.y
+	for side in _boosters:
+		var b: Dictionary = _boosters[side]
+		_place_booster(side)
+		var base_power := 0.0 if dying and _die.t > 2.4 else (0.15 if _sputter > 0.0 else 1.0)
+		if _boosters.size() == 1 and not dying:
+			base_power = 0.55 + _lift["R" if side == "L" else "L"] * 0.8
+		b.power = lerpf(b.power, base_power, minf(1.0, dt * 4.0))
+		var flick := randf_range(0.85, 1.15)
+		var length: float = (1.3 + 2.2 * b.power) * flick
+		var flame: MeshInstance3D = b.flame
+		var core: MeshInstance3D = b.core
+		flame.visible = b.power > 0.03
+		core.visible = flame.visible
+		flame.scale = Vector3(flick * 0.6 + b.power * 0.4, length, flick * 0.6 + b.power * 0.4)
+		flame.position.y = -0.4 - length * 0.5
+		core.scale = Vector3(1, length * 0.55, 1)
+		core.position.y = -0.4 - length * 0.55 * 0.5
+		if b.light:
+			(b.light as OmniLight3D).light_energy = 3.5 * b.power * flick
+		# sparks and smoke from the tip, dust where the flame licks the ground
+		b.puff -= dt
+		if b.puff <= 0.0 and b.power > 0.1:
+			b.puff = 0.05
+			var node: Node3D = b.node
+			var tip: Vector3 = node.global_transform * Vector3(0, -0.4 - length, 0)
+			effects.thruster(tip, -node.global_basis.y * 6.0 * b.power, ground, b.power)
 
 
 func _start_dying() -> void:
@@ -1012,6 +1189,7 @@ func _start_dying() -> void:
 func _step_dying(dt: float) -> void:
 	_die.t += dt
 	_kneel = minf(1.0, _kneel + dt * 0.5)
+	_step_hover(dt)
 	_flinch = 0.6 + sin(_die.t * 30.0) * 0.3
 	_aim = move_toward(_aim, 0.0, dt * 2.0)
 	_throw = move_toward(_throw, 0.0, dt * 2.0)
@@ -1056,11 +1234,19 @@ func _pose(dt: float) -> void:
 	# hips: bob with the steps, roll towards the planted foot, sink when kneeling
 	var hips: Node3D = n.Boss_Hips
 	var hr: Transform3D = rest.Boss_Hips
-	hips.position = hr.origin + Vector3(0, lift_max * 0.18 - _kneel * 1.1 + breathe * 0.03, 0)
-	hips.basis = hr.basis * Basis(Vector3.RIGHT, sway * 0.06 + stag)
+	var lean = 0.0  # roll towards the stump while hopping on one leg
+	if _boosters.size() == 1:
+		lean = 0.1 if _boosters.has("L") else -0.1
+	elif _boosters.size() == 2:
+		lean = sin(t * 1.9) * 0.06 + sin(t * 4.7) * 0.025 * (1.0 + _sputter * 6.0)
+	hips.position = hr.origin + Vector3(0, lift_max * 0.18 - _kneel * 1.1 + breathe * 0.03 + _hover / MODEL_SCALE, 0)
+	hips.basis = hr.basis * Basis(Vector3.RIGHT, sway * 0.06 + stag + lean)
 	for side in ["L", "R"]:
 		var lift: float = _lift[side]
 		var kneel_bend = _kneel * (0.9 if side == "L" else 0.5)
+		if _boosters.size() == 2:   # stumps dangle, trailing a little, kicking when the flames cough
+			lift = 0.15 + sin(t * 2.2 + (0.0 if side == "L" else 1.7)) * 0.12 + _sputter * 0.8
+			kneel_bend = 0.2
 		var leg: Node3D = n["Boss_Leg%s_Pivot" % side]
 		leg.basis = (rest["Boss_Leg%s_Pivot" % side] as Transform3D).basis * Basis(Vector3(0, 0, 1), lift * 0.55 + kneel_bend * 0.8)
 		var knee: Node3D = n["Boss_Knee" + side]

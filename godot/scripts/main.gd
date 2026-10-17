@@ -481,6 +481,8 @@ func _parse_auto_args() -> void:
 		elif a == "--boom":   # perf test: a bazooka explosion in front of you every 1.5 s, frame-time stats per second
 			_auto.boom = 0.0
 			_auto.play = true
+		elif a == "--nolegs":   # with --bossfight: shoot both of FATBIKETRON's leg bikes off as soon as the fight starts
+			_auto.nolegs = true
 		elif a == "--god":   # can't lose hearts (smoke tests)
 			_auto.god = true
 		elif a == "--noboss":
@@ -563,6 +565,10 @@ func _auto_step(dt: float) -> void:
 		game.time = 0.05
 	if _auto.get("skip_intro", false) and game.state == "boss_intro" and game.boss.state == "intro" and game.boss._intro.get("stage", "") != "card":
 		game.boss.skip_intro()
+	if _auto.get("nolegs", false) and game.state == "boss" and game.boss.state == "fight":
+		_auto.erase("nolegs")
+		for leg in ["LegL", "LegR"]:
+			game.boss.damage(leg, 999.0, game.boss._part_center(leg))
 	if _auto.get("play", false) and mode == "playing" and game.state == "boss":
 		# aim at a random boss part and fire now and then
 		var part = ["LegL", "LegR", "Torso", "ArmL", "ArmR", "Head"].filter(func(k): return game.boss.parts[k].alive and (k != "Head" or game.boss.head_open))
