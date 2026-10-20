@@ -42,6 +42,44 @@ func setup(cam: Camera3D, layer: Control, font: Font, font_ui: Font) -> void:
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		_pools[k] = mmi
+	_warm = 3
+
+
+## The web build (WebGL) compiles a shader the first time something is drawn with it, and the game stands still
+## meanwhile: the first shot, explosion or ice splat froze it. So draw every effect once, tiny (and the particles nearly
+## transparent), right at the camera while the title screen loads (a few frames, so it survives the camera settling).
+var _warm := 0
+var _warm_nodes: Array = []
+
+
+## Draw `node` (e.g. a projectile with a material of its own) once at the camera too, then free it.
+func warm(node: Node3D) -> void:
+	add_child(node)
+	node.scale = Vector3.ONE * 0.002   # sub-pixel: no `transparency`, that would compile another variant
+	_warm_nodes.append(node)
+
+
+func _warm_up() -> void:
+	_warm -= 1
+	var at := camera.global_position - camera.global_basis.z * 1.5
+	for k in _pools:
+		_spawn(k, Color(1, 1, 1, 0.004), 0.002, at, Vector3.ZERO, 0.2)
+	if _warm == 2:
+		var mi := MeshInstance3D.new()   # the stars around a dazed rider: same texture trick, but not instanced
+		mi.mesh = _quad
+		mi.material_override = _mats.star
+		warm(mi)
+		for spec in [[_font, 96], [_font, 72], [_font, 44], [_font, 34], [_font, 26], [_font_ui, 17]]:   # glyphs of popups and bubbles
+			var lb := _label("BOEM!0123456789", spec[1], Color.WHITE, 8, spec[0] == _font_ui)
+			lb.modulate.a = 0.004
+			_warm_nodes.append(lb)
+	for n in _warm_nodes:
+		if n is Node3D:
+			(n as Node3D).global_position = at
+	if _warm == 0:
+		for n in _warm_nodes:
+			n.queue_free()
+		_warm_nodes.clear()
 
 
 # ------------------------------------------------------------ textures / materials
@@ -549,6 +587,8 @@ func clear() -> void:
 
 
 func step(dt: float) -> void:
+	if _warm > 0:
+		_warm_up()
 	_update_debris(dt)
 	_update_particles(dt)
 	_update_fireworks(dt)

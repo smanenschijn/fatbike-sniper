@@ -55,6 +55,8 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	weapons.eject_shell.connect(_eject_shell)
 	weapons.empty_mag.connect(func(): hud.message("LEEG!", 0.5))
 	riders.player_hit.connect(on_player_hit)
+	for n in [_stone(), _ice_scoop(Weapons.ICE_FLAVOURS[0]), _tracer_line(Vector3.ZERO, Vector3.FORWARD)]:
+		effects.warm(n)   # materials of their own: compile them before the first shot
 	boss = Fatbiketron.new()
 	world.add_child(boss)
 	boss.setup(self, riders, effects, world.eye)
@@ -293,19 +295,24 @@ func fire_projectile(w: Dictionary, muzzle: Vector3, origin: Vector3, fwd: Vecto
 		projectiles.append({"node": node, "vel": vel, "w": w, "age": 0.0, "trail": 0.0, "hit_any": false, "flavour": flavour})
 		return
 	else:
-		var mi = MeshInstance3D.new()
-		var sm = SphereMesh.new()
-		sm.radius = 0.06
-		sm.height = 0.12
-		mi.mesh = sm
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = Color("8c8a83")
-		mat.roughness = 0.85
-		mi.material_override = mat
-		node = mi
+		node = _stone()
 	world.add_child(node)
 	node.global_position = muzzle
 	projectiles.append({"node": node, "vel": vel, "w": w, "age": 0.0, "trail": 0.0, "hit_any": false})
+
+
+## A catapult stone.
+func _stone() -> MeshInstance3D:
+	var mi = MeshInstance3D.new()
+	var sm = SphereMesh.new()
+	sm.radius = 0.06
+	sm.height = 0.12
+	mi.mesh = sm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color("8c8a83")
+	mat.roughness = 0.85
+	mi.material_override = mat
+	return mi
 
 
 var _ice_mesh: SphereMesh
@@ -624,6 +631,12 @@ func _eject_shell(shell: Node3D) -> void:
 
 
 func _tracer(from: Vector3, to: Vector3) -> void:
+	var mi := _tracer_line(from, to)
+	world.add_child(mi)
+	tracers.append({"node": mi, "age": 0.0})
+
+
+func _tracer_line(from: Vector3, to: Vector3) -> MeshInstance3D:
 	var mi = MeshInstance3D.new()
 	var im = ImmediateMesh.new()
 	im.surface_begin(Mesh.PRIMITIVE_LINES)
@@ -636,8 +649,7 @@ func _tracer(from: Vector3, to: Vector3) -> void:
 	m.albedo_color = Color("fff2b0")
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mi.material_override = m
-	world.add_child(mi)
-	tracers.append({"node": mi, "age": 0.0})
+	return mi
 
 
 # ------------------------------------------------------------ scoring
