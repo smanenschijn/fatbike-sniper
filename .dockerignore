@@ -1,0 +1,11 @@
+.git
+node_modules
+dist
+renders
+*.blend
+*.blend1
+.DS_Store
+__pycache__
+godot/.godot
+godot/build
+godot/export_credentials.cfg
