@@ -15,7 +15,7 @@ Alles wat je nodig hebt voor de stores, de website en social media. De beelden k
 | `store-listing.md` | Teksten voor de store-pagina's (naam, ondertitel, beschrijving, zoekwoorden) | |
 | `selection.json`, `shorts.json` | Welke frames en fragmenten er gebruikt zijn, met de kopteksten | |
 
-De website staat in `website/`. De Docker-build zet die op `/` en de browserversie van de game op `/speel/` (zie `Dockerfile`).
+De website staat in `website/` en draait op https://fatbike-sniper.manenschijn.eu/. De Docker-build zet de site op `/` en de browserversie van de game op `/speel/` (zie `Dockerfile`); een push naar `main` deployt automatisch.
 
 ## Opnieuw maken
 
@@ -34,6 +34,5 @@ Formaten: `iphone`, `ipad`, `play`, `short`, `trailer`. Scènes: `sniper`, `shot
 
 ## Nog in te vullen
 
-- **Domein:** zet het in `og:image`/`og:url` in `website/index.html`, zodat links bij het delen een plaatje krijgen.
 - **Contactadressen** in `website/index.html` (pers) en `website/privacy.html`. Daar staan nu `@example.com`-adressen.
 - **Store-knoppen:** zodra de apps live staan, vervang je de "Binnenkort"-knoppen door de officiële badges van Apple en Google, met de echte links.
