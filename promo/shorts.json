@@ -1,12 +1,165 @@
 [
-  {"name": "pov-terras", "source": "short-sniper", "out": "promo/shorts/01-pov-terras.mp4", "start": 9, "duration": 24,
-   "captions": [
-     {"from": 0, "to": 3.6, "lines": [["POV:", "yellow"], ["JE WILT GEWOON", "white"], ["EEN IJSJE ETEN", "white"]]},
-     {"from": 3.6, "to": 8, "lines": [["EN DAN KOMEN", "white"], ["DE FATBIKERS", "yellow"]]},
-     {"from": 13, "to": 17, "lines": [["ZIT. RICHT.", "white"], ["SCHIET.", "yellow"]]}
-   ],
-   "end_card": [["BINNENKORT IN DE APP STORE", "ink", 120], ["EN OP GOOGLE PLAY", "ink", 120], ["NU GRATIS IN JE BROWSER", "white", 130]],
-   "poster": "promo/shorts/01-pov-terras.jpg", "poster_at": 1.5},
-  {"name": "site-phone", "source": "short-sniper", "out": "website/media/short.mp4", "start": 12, "duration": 16,
-   "mute": true, "scale": "540:960", "crf": 27, "poster": "website/media/short-poster.jpg", "poster_at": 7.5}
+  {
+    "name": "pov-terras",
+    "source": "short-sniper",
+    "out": "promo/shorts/01-pov-terras.mp4",
+    "start": 9,
+    "duration": 24,
+    "captions": [
+      {
+        "from": 0,
+        "to": 3.6,
+        "lines": [
+          [
+            "POV:",
+            "yellow"
+          ],
+          [
+            "JE WILT GEWOON",
+            "white"
+          ],
+          [
+            "EEN IJSJE ETEN",
+            "white"
+          ]
+        ]
+      },
+      {
+        "from": 3.6,
+        "to": 8,
+        "lines": [
+          [
+            "EN DAN KOMEN",
+            "white"
+          ],
+          [
+            "DE FATBIKERS",
+            "yellow"
+          ]
+        ]
+      },
+      {
+        "from": 13,
+        "to": 17,
+        "lines": [
+          [
+            "ZIT. RICHT.",
+            "white"
+          ],
+          [
+            "SCHIET.",
+            "yellow"
+          ]
+        ]
+      }
+    ],
+    "end_card": [
+      [
+        "BINNENKORT IN DE APP STORE",
+        "ink",
+        120
+      ],
+      [
+        "EN OP GOOGLE PLAY",
+        "ink",
+        120
+      ],
+      [
+        "NU GRATIS IN JE BROWSER",
+        "white",
+        130
+      ]
+    ],
+    "poster": "promo/shorts/01-pov-terras.jpg",
+    "poster_at": 1.5
+  },
+  {
+    "name": "fatbiketron",
+    "source": "short-rockets",
+    "out": "promo/shorts/02-fatbiketron.mp4",
+    "start": 4,
+    "duration": 28,
+    "captions": [
+      {
+        "from": 0,
+        "to": 3.2,
+        "y": 0.62,
+        "lines": [
+          [
+            "DE EINDBAAS IS",
+            "white"
+          ],
+          [
+            "EEN ROBOT",
+            "yellow"
+          ],
+          [
+            "VAN FATBIKES",
+            "white"
+          ]
+        ]
+      },
+      {
+        "from": 3.6,
+        "to": 7.4,
+        "y": 0.05,
+        "lines": [
+          [
+            "SCHIET Z'N",
+            "white"
+          ],
+          [
+            "BENEN ERAF...",
+            "yellow"
+          ]
+        ]
+      },
+      {
+        "from": 7.6,
+        "to": 12,
+        "y": 0.05,
+        "lines": [
+          [
+            "...EN HIJ VLIEGT",
+            "white"
+          ],
+          [
+            "GEWOON DOOR",
+            "yellow"
+          ]
+        ]
+      }
+    ],
+    "end_card": [
+      [
+        "BINNENKORT IN DE APP STORE",
+        "ink",
+        120
+      ],
+      [
+        "EN OP GOOGLE PLAY",
+        "ink",
+        120
+      ],
+      [
+        "NU GRATIS IN JE BROWSER",
+        "white",
+        130
+      ]
+    ],
+    "poster": "promo/shorts/02-fatbiketron.jpg",
+    "poster_at": 5
+  },
+  {
+    "name": "site-phone",
+    "source": "short-sniper",
+    "out": "website/media/short.mp4",
+    "start": 12,
+    "duration": 16,
+    "mute": true,
+    "scale": "540:960",
+    "crf": 27,
+    "poster": "website/media/short-poster.jpg",
+    "poster_at": 7.5
+  }
 ]
