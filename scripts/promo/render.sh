@@ -43,6 +43,9 @@ if [ "$KIND" = shots ]; then
 else
   D="$OUT/movie-$SIZE-$SCENE"
   rm -rf "$D" && mkdir -p "$D"
+  # Movie Maker records at the project's window size, not the --resolution one: override it for this run
+  printf '[display]\n\nwindow/size/window_width_override=%s\nwindow/size/window_height_override=%s\n' ${RES%x*} ${RES#*x} > godot/override.cfg
+  trap 'rm -f godot/override.cfg' EXIT
   "$GODOT" --path godot --resolution $RES --write-movie "$D/f.png" --fixed-fps 30 -- --autoshot="$D/end.png" \
     $ARGS $TOUCH --smooth=5 --god --wait=$WAIT
 fi

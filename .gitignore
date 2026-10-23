@@ -6,3 +6,4 @@ renders/
 .DS_Store
 __pycache__/
 build/
+godot/override.cfg
