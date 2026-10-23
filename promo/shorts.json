@@ -231,5 +231,17 @@
     "crf": 27,
     "poster": "website/media/short-poster.jpg",
     "poster_at": 7.5
+  },
+  {
+    "name": "site-hero",
+    "source": "trailer-sniper",
+    "out": "website/media/trailer.mp4",
+    "start": 14,
+    "duration": 21,
+    "mute": true,
+    "scale": "1280:720",
+    "crf": 28,
+    "poster": "website/media/trailer-poster.jpg",
+    "poster_at": 9
   }
 ]
