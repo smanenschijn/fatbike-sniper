@@ -151,6 +151,76 @@
     "poster_at": 5
   },
   {
+    "name": "ijsmachine",
+    "source": "short-ijsmachine",
+    "out": "promo/shorts/03-ijsmachine.mp4",
+    "start": 13,
+    "duration": 22,
+    "captions": [
+      {
+        "from": 0,
+        "to": 3.6,
+        "lines": [
+          [
+            "EEN MACHINEGEWEER",
+            "white"
+          ],
+          [
+            "DAT IJSJES SCHIET",
+            "yellow"
+          ]
+        ]
+      },
+      {
+        "from": 3.8,
+        "to": 8,
+        "lines": [
+          [
+            "BREINVRIES",
+            "yellow"
+          ],
+          [
+            "GEGARANDEERD",
+            "white"
+          ]
+        ]
+      },
+      {
+        "from": 13.6,
+        "to": 17,
+        "lines": [
+          [
+            "ZE GOOIEN",
+            "white"
+          ],
+          [
+            "MESSEN TERUG!",
+            "yellow"
+          ]
+        ]
+      }
+    ],
+    "end_card": [
+      [
+        "BINNENKORT IN DE APP STORE",
+        "ink",
+        120
+      ],
+      [
+        "EN OP GOOGLE PLAY",
+        "ink",
+        120
+      ],
+      [
+        "NU GRATIS IN JE BROWSER",
+        "white",
+        130
+      ]
+    ],
+    "poster": "promo/shorts/03-ijsmachine.jpg",
+    "poster_at": 5
+  },
+  {
     "name": "site-phone",
     "source": "short-sniper",
     "out": "website/media/short.mp4",
