@@ -35,7 +35,7 @@ COLORS = {"ink": brand.INK, "white": brand.WHITE, "red": brand.RED}
 
 
 def caption(parts, max_w, max_h):
-    img = brand.text_layer([(t, COLORS[c]) for t, c in parts], 220, stroke=12, spacing=0.12)
+    img = brand.text_layer([(t, COLORS[c]) for t, c in parts], 220, stroke=12, spacing=0.22)
     s = min(max_w / img.width, max_h / img.height)
     return img.resize((int(img.width * s), int(img.height * s)), Image.LANCZOS)
 
@@ -81,22 +81,25 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         for old in out.glob("*.jpg"):
             old.unlink()
-        for i, slot in enumerate(sel["store"], 1):
-            raw = RAW / key / slot["frames"][key]
-            store_shot(fmt, raw, slot["caption"]).save(out / f"{i:02d}-{slot['name']}.jpg", quality=92, optimize=True)
-        print(f"{fmt['dir']}: {len(sel['store'])} screenshots")
+        slots = [s for s in sel["store"] if key in s["frames"]]
+        for i, slot in enumerate(slots, 1):
+            store_shot(fmt, RAW / key / slot["frames"][key], slot["caption"]).save(out / f"{i:02d}-{slot['name']}.jpg", quality=92, optimize=True)
+        print(f"{fmt['dir']}: {len(slots)} screenshots")
 
+    BRAND.mkdir(parents=True, exist_ok=True)
+    brand.logo(1200).save(BRAND / "logo.png", optimize=True)
+    Image.open(brand.ICON).convert("RGB").resize((512, 512), Image.LANCZOS).save(STORE / "google-play-icon-512.png", optimize=True)
+    print("logo and 512 px store icon")
+
+    if not (RAW / "play" / sel["feature"]).exists():
+        print("no play captures yet: skipping the feature graphic and site images")
+        return
     hero(RAW / "play" / sel["feature"], (1024, 500), 330).save(STORE / "google-play-feature-graphic.png", optimize=True)
     hero(RAW / "play" / sel["feature"], (1200, 630), 400).save(SITE_IMG / "og.jpg", quality=88, optimize=True)
     for i, name in enumerate(sel["site"], 1):
         img = Image.open(RAW / "play" / name).convert("RGB")
         img.resize((1600, round(1600 * img.height / img.width)), Image.LANCZOS).save(SITE_IMG / f"shot-{i}.jpg", quality=84, optimize=True)
     print("feature graphic, og.jpg and", len(sel["site"]), "site screenshots")
-
-    BRAND.mkdir(parents=True, exist_ok=True)
-    brand.logo(1200).save(BRAND / "logo.png", optimize=True)
-    Image.open(brand.ICON).convert("RGB").resize((512, 512), Image.LANCZOS).save(STORE / "google-play-icon-512.png", optimize=True)
-    print("logo and 512 px store icon")
 
 
 if __name__ == "__main__":

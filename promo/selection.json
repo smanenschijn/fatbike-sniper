@@ -1,7 +1,18 @@
 {
   "store": [
-    {"name": "test", "caption": [["SCHIET FATBIKERS", "ink"], ["VAN HUN FIETS", "white"]], "frames": {"iphone": "a.png", "ipad": "a.png", "play": "a.png"}}
+    {"name": "van-hun-fiets", "caption": [["SCHIET FATBIKERS", "ink"], ["VAN HUN FIETS", "white"]],
+     "frames": {"iphone": "sniper_190.png"}},
+    {"name": "ijsmachine", "caption": [["DE", "ink"], ["IJSMACHINE:", "white"], ["BREINVRIES GEGARANDEERD", "ink"]],
+     "frames": {"iphone": "ijsmachine_240.png"}},
+    {"name": "bazooka", "caption": [["BAZOOKA!", "white"], ["WIELEN VLIEGEN IN HET ROND", "ink"]],
+     "frames": {"iphone": "bazooka_170.png"}},
+    {"name": "fatbiketron", "caption": [["VERSLA EINDBAAS", "ink"], ["FATBIKETRON", "white"]],
+     "frames": {"iphone": "boss_130.png"}},
+    {"name": "campagne", "caption": [["CAMPAGNE:", "white"], ["MET JE IJSJE DOOR DE STAD", "ink"]],
+     "frames": {"iphone": "route_140.png"}},
+    {"name": "donutplein", "caption": [["TWEE PLEINEN,", "ink"], ["ELKE RONDE ANDERS", "white"]],
+     "frames": {"iphone": "donut_330.png"}}
   ],
-  "feature": "a.png",
-  "site": ["a.png"]
+  "feature": "sniper_190.png",
+  "site": []
 }
