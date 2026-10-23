@@ -1,18 +1,119 @@
 {
   "store": [
-    {"name": "van-hun-fiets", "caption": [["SCHIET FATBIKERS", "ink"], ["VAN HUN FIETS", "white"]],
-     "frames": {"iphone": "sniper_190.png"}},
-    {"name": "ijsmachine", "caption": [["DE", "ink"], ["IJSMACHINE:", "white"], ["BREINVRIES GEGARANDEERD", "ink"]],
-     "frames": {"iphone": "ijsmachine_240.png"}},
-    {"name": "bazooka", "caption": [["BAZOOKA!", "white"], ["WIELEN VLIEGEN IN HET ROND", "ink"]],
-     "frames": {"iphone": "bazooka_170.png"}},
-    {"name": "fatbiketron", "caption": [["VERSLA EINDBAAS", "ink"], ["FATBIKETRON", "white"]],
-     "frames": {"iphone": "boss_130.png"}},
-    {"name": "campagne", "caption": [["CAMPAGNE:", "white"], ["MET JE IJSJE DOOR DE STAD", "ink"]],
-     "frames": {"iphone": "route_140.png"}},
-    {"name": "donutplein", "caption": [["TWEE PLEINEN,", "ink"], ["ELKE RONDE ANDERS", "white"]],
-     "frames": {"iphone": "donut_330.png"}}
+    {
+      "name": "van-hun-fiets",
+      "caption": [
+        [
+          "SCHIET FATBIKERS",
+          "ink"
+        ],
+        [
+          "VAN HUN FIETS",
+          "white"
+        ]
+      ],
+      "frames": {
+        "iphone": "sniper_190.png",
+        "play": "sniper_290.png"
+      }
+    },
+    {
+      "name": "ijsmachine",
+      "caption": [
+        [
+          "DE",
+          "ink"
+        ],
+        [
+          "IJSMACHINE:",
+          "white"
+        ],
+        [
+          "BREINVRIES GEGARANDEERD",
+          "ink"
+        ]
+      ],
+      "frames": {
+        "iphone": "ijsmachine_240.png",
+        "play": "ijsmachine_190.png"
+      }
+    },
+    {
+      "name": "bazooka",
+      "caption": [
+        [
+          "BAZOOKA!",
+          "white"
+        ],
+        [
+          "WIELEN VLIEGEN IN HET ROND",
+          "ink"
+        ]
+      ],
+      "frames": {
+        "iphone": "bazooka_170.png",
+        "play": "bazooka_190.png"
+      }
+    },
+    {
+      "name": "fatbiketron",
+      "caption": [
+        [
+          "VERSLA EINDBAAS",
+          "ink"
+        ],
+        [
+          "FATBIKETRON",
+          "white"
+        ]
+      ],
+      "frames": {
+        "iphone": "boss_130.png",
+        "play": "boss_300.png"
+      }
+    },
+    {
+      "name": "campagne",
+      "caption": [
+        [
+          "CAMPAGNE:",
+          "white"
+        ],
+        [
+          "MET JE IJSJE DOOR DE STAD",
+          "ink"
+        ]
+      ],
+      "frames": {
+        "iphone": "route_140.png",
+        "play": "route_130.png"
+      }
+    },
+    {
+      "name": "donutplein",
+      "caption": [
+        [
+          "TWEE PLEINEN,",
+          "ink"
+        ],
+        [
+          "ELKE RONDE ANDERS",
+          "white"
+        ]
+      ],
+      "frames": {
+        "iphone": "donut_330.png",
+        "play": "donut_300.png"
+      }
+    }
   ],
-  "feature": "sniper_190.png",
-  "site": []
+  "feature": "ijsmachine_190.png",
+  "site": [
+    "sniper_290.png",
+    "ijsmachine_190.png",
+    "bazooka_190.png",
+    "boss_300.png",
+    "route_130.png",
+    "donut_300.png"
+  ]
 }

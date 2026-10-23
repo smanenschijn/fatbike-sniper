@@ -117,7 +117,7 @@ section { padding: 96px 0; }
 /* gallery */
 .shots { padding-bottom: 72px; }
 .gallery { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 8px 16px 20px; scrollbar-color: var(--yellow) transparent; }
-.gallery img { flex: 0 0 auto; width: min(780px, 86vw); height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; border: 3px solid rgba(255, 248, 234, .15); scroll-snap-align: center; }
+.gallery img { flex: 0 0 auto; width: min(780px, 86vw); height: auto; aspect-ratio: 1600 / 748; object-fit: cover; border-radius: 16px; border: 3px solid rgba(255, 248, 234, .15); scroll-snap-align: center; }
 @media (min-width: 1200px) { .gallery { padding-left: calc((100vw - var(--wrap)) / 2 + 16px); } }
 
 /* music */
