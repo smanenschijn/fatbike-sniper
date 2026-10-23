@@ -14,7 +14,8 @@
       ],
       "frames": {
         "iphone": "sniper_190.png",
-        "play": "sniper_290.png"
+        "play": "sniper_290.png",
+        "ipad": "sniper_330.png"
       }
     },
     {
@@ -35,7 +36,8 @@
       ],
       "frames": {
         "iphone": "ijsmachine_240.png",
-        "play": "ijsmachine_190.png"
+        "play": "ijsmachine_190.png",
+        "ipad": "ijsmachine_320.png"
       }
     },
     {
@@ -52,7 +54,8 @@
       ],
       "frames": {
         "iphone": "bazooka_170.png",
-        "play": "bazooka_190.png"
+        "play": "bazooka_190.png",
+        "ipad": "bazooka_140.png"
       }
     },
     {
@@ -69,7 +72,8 @@
       ],
       "frames": {
         "iphone": "boss_130.png",
-        "play": "boss_300.png"
+        "play": "boss_300.png",
+        "ipad": "boss_290.png"
       }
     },
     {
@@ -86,7 +90,8 @@
       ],
       "frames": {
         "iphone": "route_140.png",
-        "play": "route_130.png"
+        "play": "route_130.png",
+        "ipad": "route_160.png"
       }
     },
     {
@@ -103,7 +108,8 @@
       ],
       "frames": {
         "iphone": "donut_330.png",
-        "play": "donut_300.png"
+        "play": "donut_300.png",
+        "ipad": "donut_290.png"
       }
     }
   ],

@@ -37,7 +37,7 @@ def main():
         z.writestr("fatbike-sniper/factsheet.txt", FACTS)
         z.write(ROOT / "godot/icon.png", "fatbike-sniper/icon-1024.png")
         for f in [P / "brand/logo.png", P / "store/google-play-feature-graphic.png", *sorted((P / "store/google-play-phone").glob("*.jpg")),
-                  *sorted((P / "shorts").glob("*.mp4"))[:2]]:
+                  *sorted((P / "shorts").glob("*.mp4"))[:1]]:
             if f.exists():
                 sub = "screenshots/" if f.suffix == ".jpg" else "video/" if f.suffix == ".mp4" else ""
                 z.write(f, f"fatbike-sniper/{sub}{f.name}")
