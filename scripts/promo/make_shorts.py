@@ -92,12 +92,13 @@ def render(job, tmp):
     if job.get("scale"):   # the site videos are smaller than the recordings
         chains.append(f"[{last}]scale={job['scale']}[vs]")
         last = "vs"
-    chains.append(f"[1:a]atrim=start={start}:duration={dur},asetpts=PTS-STARTPTS,afade=in:d=0.3,afade=out:st={dur - 1.2}:d=1.2[a]")
+    if not job.get("mute"):
+        chains.append(f"[1:a]atrim=start={start}:duration={dur},asetpts=PTS-STARTPTS,afade=in:d=0.3,afade=out:st={dur - 1.2}:d=1.2[a]")
     out = ROOT / job["out"]
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chains), "-map", f"[{last}]"]
     cmd += [] if job.get("mute") else ["-map", "[a]", "-c:a", "aac", "-b:a", "160k"]
-    cmd += ["-c:v", "libx264", "-preset", "slow", "-crf", str(job.get("crf", 20)), "-pix_fmt", "yuv420p",
+    cmd += ["-c:v", "libx264", "-preset", "slow", "-crf", str(job.get("crf", 23)), "-pix_fmt", "yuv420p",
             "-movflags", "+faststart", "-r", "30", str(out)]
     subprocess.run(cmd, check=True)
     if job.get("poster"):
