@@ -1,4 +1,4 @@
-# Builds the Godot web export (same steps as the old GitHub Pages workflow) and serves it with nginx.
+# Builds the website (website/) with the Godot web export under /speel/ and serves it with nginx.
 FROM ubuntu:24.04 AS build
 ARG GODOT_VERSION=4.7.2
 
@@ -22,9 +22,14 @@ WORKDIR /src
 COPY . .
 RUN scripts/sync-godot-assets.sh \
  && godot --headless --path godot --import \
- && mkdir -p /out \
- && godot --headless --path godot --export-release "Web" /out/index.html \
- && ls -la /out
+ && mkdir -p /out/speel \
+ && godot --headless --path godot --export-release "Web" /out/speel/index.html \
+ && ls -la /out/speel
+
+# The landing page at /, the game at /speel/, plus the soundtrack and a press kit zip for the site.
+RUN cp -r website/. /out/ \
+ && mkdir -p /out/audio && cp public/audio/fatbike-flow.mp3 /out/audio/ \
+ && python3 scripts/promo/presskit.py /out/perskit.zip
 
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

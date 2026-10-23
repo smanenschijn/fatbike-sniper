@@ -1,0 +1,7 @@
+{
+  "store": [
+    {"name": "test", "caption": [["SCHIET FATBIKERS", "ink"], ["VAN HUN FIETS", "white"]], "frames": {"iphone": "a.png", "ipad": "a.png", "play": "a.png"}}
+  ],
+  "feature": "a.png",
+  "site": ["a.png"]
+}

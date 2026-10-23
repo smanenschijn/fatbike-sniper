@@ -494,6 +494,10 @@ func _parse_auto_args() -> void:
 			_auto.skip_intro = true
 		elif a.begins_with("--shots="):   # extra screenshots at these seconds: <autoshot>_<t>.png
 			_auto.shots = Array(a.substr(8).split(",")).map(func(x): return float(x))
+		elif a.begins_with("--smooth="):   # with --autoplay: glide the aim onto riders at this rate (promo videos)
+			_auto.smooth = float(a.substr(9))
+		elif a == "--fast":   # with --shots: low-res 3D between screenshots (software rendering)
+			_auto.fast = true
 		elif a.begins_with("--wait="):
 			_auto.wait = float(a.substr(7))
 		elif a.begins_with("--menu="):   # open the title's second step: klassiek | campagne | info
@@ -576,8 +580,13 @@ func _auto_step(dt: float) -> void:
 			if not _auto.has("part") or not game.boss.parts[_auto.part].alive or fmod(_auto.t, 4.0) < dt:
 				_auto.part = part.pick_random()
 			var d = (game.boss._part_center(_auto.part) - world.eye).normalized()
-			inp.yaw = atan2(-d.x, -d.z) - game.view_yaw
-			inp.pitch = asin(d.y)
+			if _auto.has("smooth"):
+				var k := minf(1.0, dt * _auto.smooth)
+				inp.yaw = lerp_angle(inp.yaw, atan2(-d.x, -d.z) - game.view_yaw, k)
+				inp.pitch = lerpf(inp.pitch, asin(d.y), k)
+			else:
+				inp.yaw = atan2(-d.x, -d.z) - game.view_yaw
+				inp.pitch = asin(d.y)
 			if fmod(_auto.t, 0.5) < dt:
 				inp.fire_pressed = true
 				inp.fire_down = true
@@ -592,12 +601,25 @@ func _auto_step(dt: float) -> void:
 		if best != null:
 			var t: Vector3 = (best.model as Node3D).global_transform * Vector3(-0.07, 1.17, 0)
 			var d = (t - world.eye).normalized()
-			inp.yaw = wrapf(atan2(-d.x, -d.z) - game.view_yaw, -PI, PI)
-			inp.pitch = asin(d.y)
-			if weapons.current().get("auto", false):
-				inp.fire_down = not _auto.get("knife", false)
-			elif fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
-				inp.fire_pressed = true
+			var want_yaw := wrapf(atan2(-d.x, -d.z) - game.view_yaw, -PI, PI)
+			if _auto.has("smooth"):
+				# glide the crosshair onto the target like a player would, and only fire once it's on it
+				var k := minf(1.0, dt * _auto.smooth)
+				inp.yaw = lerp_angle(inp.yaw, want_yaw, k)
+				inp.pitch = lerpf(inp.pitch, asin(d.y), k)
+				var on := absf(angle_difference(inp.yaw, want_yaw)) < 0.02 and absf(inp.pitch - asin(d.y)) < 0.02
+				if weapons.current().get("auto", false):
+					inp.fire_down = on
+				elif on and _auto.t - _auto.get("last_fire", -9.0) > 0.7:
+					_auto.last_fire = _auto.t
+					inp.fire_pressed = true
+			else:
+				inp.yaw = want_yaw
+				inp.pitch = asin(d.y)
+				if weapons.current().get("auto", false):
+					inp.fire_down = not _auto.get("knife", false)
+				elif fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
+					inp.fire_pressed = true
 		elif weapons.current().get("auto", false):
 			inp.fire_down = false
 	if _auto.get("knife", false) and game.state == "playing" and _auto.t > _auto.wait - 2.0 and not _auto.has("knife_done"):
@@ -608,6 +630,12 @@ func _auto_step(dt: float) -> void:
 	if _auto.get("bullet", false) and mode == "playing" and game.state == "playing" and _auto.t > _auto.wait - 1.2 and not game.bt.active:
 		game.bt.meter = 1.0
 		game.start_bullet_time()
+	if _auto.get("fast", false):
+		# render the 3D world at low resolution except for the frames just before a screenshot
+		var soon: bool = _auto.wait - _auto.t < 0.25
+		for st in _auto.get("shots", []):
+			soon = soon or st - _auto.t < 0.25
+		get_viewport().scaling_3d_scale = 1.0 if soon else 0.25
 	for st in _auto.get("shots", []).duplicate():
 		if _auto.t >= st:
 			_auto.shots.erase(st)
