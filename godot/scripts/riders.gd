@@ -49,6 +49,8 @@ var knives: Array = []
 var spawn_timer := 1.0
 var retaliate_cooldown := 0.0
 var _next_id := 0
+# Temporary while the crowd gets its glow-up: only the variants that already have it (the rigged ones) ride.
+const ONLY_GLOWUP := true
 var force_variant := ""   # dev: everybody is this variant (e.g. "V01", via --rider=V01)
 
 var _bike_tpl: Node3D
@@ -160,6 +162,10 @@ static func _shade(hex: String, f: float) -> String:
 
 func _person(exclude := "") -> Dictionary:
 	var pool = _variants.filter(func(v): return v.id != exclude)
+	if ONLY_GLOWUP and not _anim_libs.is_empty():
+		pool = _variants.filter(func(v): return _anim_libs.has(v.id) and v.id != exclude)
+		if pool.is_empty():   # a duo with only one glow-up variant: same model, other colours
+			pool = _variants.filter(func(v): return _anim_libs.has(v.id))
 	if force_variant != "":
 		pool = _variants.filter(func(v): return v.id == force_variant)
 	var v: Dictionary = pool.pick_random()
