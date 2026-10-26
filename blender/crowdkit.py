@@ -135,8 +135,9 @@ def bumps(t, centres, width, amp):
 
 # ---------------------------------------------------------------- mesh helpers
 
-def remesh(o, voxel, smooth=4, ratio=None):
-    """Voxel-remesh (smooth union of overlapping blobs), relax, optionally decimate. Keeps the first material."""
+def remesh(o, voxel, smooth=4, target=None):
+    """Voxel-remesh (smooth union of overlapping blobs), relax, optionally decimate to about `target` triangles.
+    Keeps the first material."""
     m = o.modifiers.new('remesh', 'REMESH')
     m.mode = 'VOXEL'
     m.voxel_size = voxel
@@ -145,11 +146,12 @@ def remesh(o, voxel, smooth=4, ratio=None):
         s = o.modifiers.new('smooth', 'SMOOTH')
         s.factor = 0.8
         s.iterations = smooth
-    if ratio:
-        d = o.modifiers.new('decimate', 'DECIMATE')
-        d.ratio = ratio
     keep = next((m for m in o.data.materials if m), None)
     lib.bake(o)
+    if target:
+        d = o.modifiers.new('decimate', 'DECIMATE')
+        d.ratio = min(1.0, target / lib.tri_count([o]))
+        lib.bake(o)
     o.data.materials.clear()     # joined into an empty mesh => slot 0 is empty; the remesh puts every face there
     o.data.materials.append(keep)
     o.data.polygons.foreach_set('use_smooth', [True] * len(o.data.polygons))
