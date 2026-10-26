@@ -49,6 +49,7 @@ var knives: Array = []
 var spawn_timer := 1.0
 var retaliate_cooldown := 0.0
 var _next_id := 0
+var force_variant := ""   # dev: everybody is this variant (e.g. "V01", via --rider=V01)
 
 var _bike_tpl: Node3D
 var _basket_tpl: Node3D
@@ -66,6 +67,13 @@ func setup(fx: Effects, eye: Vector3) -> void:
 	var lib: Node3D = load("res://assets/models/riders.glb").instantiate()
 	add_child(lib)
 	lib.visible = false
+	# the Blender export bakes ambient occlusion into vertex colours (COLOR_0): multiply it into every material
+	for mi in lib.find_children("*", "MeshInstance3D", true, false):
+		var mesh = (mi as MeshInstance3D).mesh
+		for s in mesh.get_surface_count():
+			var mat = mesh.surface_get_material(s) as BaseMaterial3D
+			if mat:
+				mat.vertex_color_use_as_albedo = true
 	for n in lib.find_children("*", "", true, false):
 		var nm = String(n.name)
 		if (nm.begins_with("Rider_") or nm.begins_with("Bike_")) and not _is_variant(nm):
@@ -136,8 +144,11 @@ func _paint(node: Node, colors: Dictionary) -> void:
 			continue
 		for s in m.mesh.get_surface_count():
 			var mat = m.mesh.surface_get_material(s)
-			if mat and colors.has(mat.resource_name):
-				m.set_surface_override_material(s, _variant_mat(mat, colors[mat.resource_name]))
+			if mat == null:
+				continue
+			var key = mat.resource_name.get_slice("_", 0)   # "Top_Rib" takes the colour of "Top"
+			if colors.has(key):
+				m.set_surface_override_material(s, _variant_mat(mat, colors[key]))
 
 
 static func _shade(hex: String, f: float) -> String:
@@ -147,6 +158,8 @@ static func _shade(hex: String, f: float) -> String:
 
 func _person(exclude := "") -> Dictionary:
 	var pool = _variants.filter(func(v): return v.id != exclude)
+	if force_variant != "":
+		pool = _variants.filter(func(v): return v.id == force_variant)
 	var v: Dictionary = pool.pick_random()
 	var meta: Dictionary = v.meta
 	var light = func(c): return c in ["#e9e9ec", "#f4cf3a", "#d6d0c4", "#c9b48a"]

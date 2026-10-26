@@ -24,6 +24,7 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(__file__))
 import lib  # noqa: E402
 import build_fatbiker as fb  # noqa: E402  (bike + shared rider geometry)
+import crowdkit as ck  # noqa: E402
 from lib import box, capsule, cyl, ico, join, material, sphere, subsurf, torus, tube  # noqa: E402
 from build_fatbiker import (AXIS, CHEST, FWD, HC, HEAD_R, HEAD_SCALE, HIP, HS, TORSO_ANG,  # noqa: E402
                             _orient_torus, _scaled, hv, stripes)
@@ -33,7 +34,8 @@ V = Vector
 
 # ------------------------------------------------------------------------------------------- variants
 VARIANTS = [
-    dict(id='V01', sex='m', age='adult', hair='broccoli', top='tracksuit', bottom='trackpants', facial='goatee', chain=True),
+    dict(id='V01', sex='m', age='adult', hair='broccoli', top='tracksuit', bottom='trackpants', facial='goatee', chain=True,
+         v2=True),
     dict(id='V02', sex='m', age='adult', hair='short', cap='back', top='tshirt', bottom='shorts', facial='stubble'),
     dict(id='V03', sex='m', age='teen', hair='buzz', headphones=True, top='tank', bottom='shorts', shoes='color', braces=True),
     dict(id='V04', sex='m', age='adult', hair='bald', top='tank', bottom='jeans', facial='beard', build='big'),
@@ -78,7 +80,13 @@ def mats():
         'bread': material('Baguette', '#d9a25a', rough=0.7),
         'leaf': material('BasketLeaf', '#4f8a2c', rough=0.7),
         'flower': material('BasketFlower', '#ff5a8a', rough=0.6),
+        'tongue': material('Tongue', '#d0606e', rough=0.4),
     })
+    ck.ensure_fabrics(os.path.join(ROOT, 'assets', 'textures'))
+    ck.fabric(base['top'], 'tricot')
+    ck.fabric(base['bottom'], 'twill')
+    base['top_rib'] = ck.variant(base['top'], 'Rib', Roughness=0.85)
+    base['bottom_rib'] = ck.variant(base['bottom'], 'Rib', Roughness=0.85)
     return base
 
 
@@ -455,8 +463,13 @@ def build_rider(M, v):
     root['hairGroup'] = HAIR_GROUP[v['age']]
     root['basket'] = bool(v.get('basket'))
     root['cap'] = v.get('cap', '')
-    parts = [build_torso(M, v), build_head(M, v), build_hair(M, v), fb.build_knife(M),
-             build_arm(M, v, 1), build_arm(M, v, -1), build_leg(M, v, 1), build_leg(M, v, -1)]
+    if v.get('v2'):
+        import rider_v2 as r2
+        parts = [r2.build_torso(M, v), r2.build_head(M, v), r2.build_hair(M, v), fb.build_knife(M),
+                 r2.build_arm(M, v, 1), r2.build_arm(M, v, -1), r2.build_leg(M, v, 1), r2.build_leg(M, v, -1)]
+    else:
+        parts = [build_torso(M, v), build_head(M, v), build_hair(M, v), fb.build_knife(M),
+                 build_arm(M, v, 1), build_arm(M, v, -1), build_leg(M, v, 1), build_leg(M, v, -1)]
     if not v.get('glasses'):  # prescription glasses are already part of the face
         parts.append(fb.build_sunglasses(M))
     for o in parts:
@@ -467,7 +480,23 @@ def build_rider(M, v):
     return root
 
 
-def build():
+def finish(bike, basket, riders):
+    """Material kit pass: every material multiplies in the baked AO; fabrics get box-projected UVs."""
+    for m in bpy.data.materials:
+        if m.node_tree and any(n.type == 'BSDF_PRINCIPLED' for n in m.node_tree.nodes):
+            ck.use_ao(m)
+    bike_parts = [o for o in bike.children_recursive if o.type == 'MESH']
+    ck.bake_ao(bike_parts, bike_parts)
+    bm = [o for o in basket.children_recursive if o.type == 'MESH'] + [basket]
+    ck.bake_ao(bm, bm + bike_parts)
+    for r in riders:
+        parts = [o for o in r.children_recursive if o.type == 'MESH']
+        ck.fabric_uv(parts)
+        ck.bake_ao(parts, parts + bike_parts)
+        print(f'[riders] AO baked: {r.name}')
+
+
+def build(only=None):
     lib.reset_scene()
     M = mats()
     bike = lib.empty('Bike')
@@ -480,7 +509,8 @@ def build():
     for o in (frame, bar, wf, wr, crank):
         lib.set_parent(o, bike)
     basket = build_basket(M)
-    riders = [build_rider(M, v) for v in VARIANTS]
+    riders = [build_rider(M, v) for v in VARIANTS if not only or v['id'] in only]
+    finish(bike, basket, riders)
     return M, bike, basket, riders
 
 
@@ -512,6 +542,8 @@ def preview_colors(riders):
 
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+    if '--pilot' in argv:  # quick look at one variant, no export: -- --pilot V01
+        return render_pilot(argv[argv.index('--pilot') + 1])
     M, bike, basket, riders = build()
     scene = bpy.context.scene
     objs = [bike, basket] + list(bike.children_recursive)
@@ -562,6 +594,27 @@ def main():
     for row in range(2):
         cam = lib.camera(f'Cam_faces{row}', (0.6, -4.6 + row * 2.4, 1.75), (0.0, row * 2.4, 1.5), 50)
         lib.render(scene, cam, os.path.join(rdir, f'0{row + 2}_faces_row{row + 1}.png'))
+
+
+def render_pilot(vid):
+    M, bike, basket, riders = build(only=[vid])
+    r = riders[0]
+    for o in r.children:
+        print(f'[riders]   {o.name}: {lib.tri_count([o])} tris')
+    preview_colors(riders)
+    scene = bpy.context.scene
+    lib.preview_stage(scene, size=(1600, 1200))
+    sg = next((o for o in r.children if o.name.startswith('Rider_Sunglasses')), None)
+    if sg:
+        sg.hide_render = True
+    basket.hide_render = not r.get('basket')
+    rdir = os.path.join(ROOT, 'renders', 'riders_v2')
+    os.makedirs(rdir, exist_ok=True)
+    shots = [('01_hero', (2.6, -2.2, 1.6), (0.05, 0, 0.95), 50), ('02_side', (0.1, -3.4, 1.1), (0.0, 0, 0.9), 50),
+             ('03_face', (1.15, -0.55, 1.62), (0.12, 0, 1.53), 70), ('04_rear', (-2.2, 1.9, 1.7), (-0.1, 0, 1.0), 50),
+             ('05_hands', (0.75, -0.75, 1.35), (0.3, -0.3, 1.1), 60), ('06_shoes', (0.9, -1.1, 0.55), (0.1, -0.1, 0.4), 50)]
+    for name, loc, tgt, lens in shots:
+        lib.render(scene, lib.camera('Cam_' + name, loc, tgt, lens), os.path.join(rdir, f'{vid}_{name}.png'))
 
 
 if __name__ == '__main__':

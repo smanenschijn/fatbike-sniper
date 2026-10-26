@@ -511,6 +511,8 @@ func _parse_auto_args() -> void:
 			settings.map = a.substr(6)
 		elif a.begins_with("--level="):   # easy | normal | hard | chill
 			settings.level = a.substr(8)
+		elif a.begins_with("--rider="):   # every fatbiker is this variant (V01 ... V12)
+			riders.force_variant = a.substr(8)
 		elif a.begins_with("--weapon="):   # start with this weapon (1 = katapult ... 5 = ijsmachine)
 			_auto.weapon = int(a.substr(9)) - 1
 	if _auto.has("shot"):

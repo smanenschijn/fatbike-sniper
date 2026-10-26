@@ -6,3 +6,4 @@ export_credentials.cfg
 /assets/models/weapons/*.glb
 /assets/audio/*.mp3
 /assets/textures/*.png
+/assets/models/riders_*.png
