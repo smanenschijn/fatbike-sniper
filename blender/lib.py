@@ -370,12 +370,13 @@ def render(scene, cam, path):
     bpy.ops.render.render(write_still=True)
 
 
-def export_glb(path, objects):
+def export_glb(path, objects, images='AUTO'):
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:
         o.select_set(True)
+    kw = {'export_image_format': images, 'export_image_quality': 90} if images != 'AUTO' else {}
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True,
-                              export_apply=True, export_yup=True, export_extras=True)
+                              export_apply=True, export_yup=True, export_extras=True, **kw)
 
 
 # ---------------------------------------------------------------- textured materials / UVs / text / instances
