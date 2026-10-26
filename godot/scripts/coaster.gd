@@ -51,7 +51,7 @@ func _build(marks: Array, car: Node3D) -> void:
 			c.visible = true
 			add_child(c)
 			_cars.append(c)
-	head = length * 0.5
+	head = fposmod(station_offset() + 60.0, length)   # out of the station: the first fatbiker can follow soon
 	_place()
 
 
@@ -93,6 +93,14 @@ func path_points(from: float, dist: float, step := 1.5) -> Array:
 func station_offset() -> float:
 	for i in _kinds.size():
 		if _kinds[i] == "station":
+			return _offsets[i]
+	return 0.0
+
+
+## Where the chain lift starts: riders on the rails set off from here.
+func lift_offset() -> float:
+	for i in _kinds.size():
+		if _kinds[i] == "lift":
 			return _offsets[i]
 	return 0.0
 

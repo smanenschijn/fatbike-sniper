@@ -58,7 +58,7 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	weapons.eject_shell.connect(_eject_shell)
 	weapons.empty_mag.connect(func(): hud.message("LEEG!", 0.5))
 	riders.player_hit.connect(on_player_hit)
-	for n in [_stone(), _ice_scoop(Weapons.ICE_FLAVOURS[0]), _tracer_line(Vector3.ZERO, Vector3.FORWARD)]:
+	for n in [_stone(), _ice_scoop(Weapons.ICE_FLAVOURS[0]), _tracer_line(Vector3.ZERO, Vector3.FORWARD), riders._safety_flag()]:
 		effects.warm(n)   # materials of their own: compile them before the first shot
 	boss = Fatbiketron.new()
 	world.add_child(boss)
@@ -974,14 +974,17 @@ func _step_coaster(gdt: float) -> void:
 	_coaster_t -= gdt
 	if _coaster_t > 0.0:
 		return
-	var start := c.station_offset() + 4.0
-	var gap := fposmod(start - c.head, c.length)
-	if gap < 50.0 or gap > c.length - 50.0:   # the train is (nearly) in the station: wait for it to leave
+	var start := c.lift_offset()   # at the foot of the lift, so you see him climb
+	# he rides slower than the train: only set off once the train is well ahead, so it never catches him up
+	var ahead := fposmod(c.head - start, c.length)
+	if ahead < 40.0 or ahead > c.length * 0.6:
 		return
 	_coaster_t = randf_range(10.0, 16.0)
-	var pts := c.path_points(start, c.length - 10.0)
-	var r := riders.spawn_rails(["normal", "normal", "wheelie", "duo"].pick_random(), pts, func(d): return c.speed_at(start + d))
-	effects.bubble(r.root, Vector3(0, 2.5, 0), ["JIHAAA!", "Kijk mij nou!", "Zonder handen!", "Fatbike-achtbaan!"].pick_random(), false, 2.4)
+	var track := c.path_points(start, c.length - 10.0)
+	var r := riders.spawn_rails(["normal", "normal", "wheelie", "duo"].pick_random(), track, func(d): return c.speed_at(start + d) * 0.75)
+	effects.bubble(r.root, Vector3(0, 2.5, 0), ["JIHAAA!", "Kijk mij nou!", "Zonder handen!", "Fatbike-achtbaan!"].pick_random(), false, 4.0)
+	effects.popup_screen("FATBIKER OP DE ACHTBAAN! +%d" % pts(Config.SCORE.coaster), "bonus", 0.5, 0.2, 2.4)
+	Sfx.warn()
 
 
 ## An ambush begins: a bit of spectacle and the means to deal with it.

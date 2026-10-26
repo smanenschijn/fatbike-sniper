@@ -68,13 +68,19 @@ static var MAPS := {
 		"model": "res://assets/models/wollahbi.glb", "legend": "Legende van Wollahbi",
 		"center": B(0, 2), "ring": 9.5, "tight_routes": true, "sun": Vector3(-0.6, 0.55, 0.55),
 		"entries": [
-			# from the park promenade: through the gate, or through the turnstile lanes either side
-			{"name": "poort", "spawn": B(-62, 36), "via": [B(-6, 34.5), B(0, 30)], "mouth": B(0, 15.5), "weight": 3.0},
-			{"name": "tourniquet_w", "spawn": B(-62, 37), "via": [B(-14, 36), B(-10, 31)], "mouth": B(-10, 15.5), "weight": 2.0},
-			{"name": "tourniquet_o", "spawn": B(62, 37), "via": [B(14, 36), B(10, 31)], "mouth": B(10, 15.5), "weight": 2.0},
+			# from the park promenade: through the gate, or over the turnstiles either side (no ticket, of course)
+			{"name": "poort", "spawn": B(-62, 36), "via": [B(-6, 34.5), B(0, 30)], "mouth": B(0, 15.5), "weight": 2.5},
+			{"name": "tourniquet_w", "spawn": B(-62, 37), "via": [B(-14, 36), B(-12.6, 27)], "mouth": B(-12.6, 14.5), "weight": 2.0,
+				"hop": [B(-12.6, 23.5), B(-12.6, 16.8), 1.3], "shouts": SNEAK_SHOUTS},
+			{"name": "tourniquet_w2", "spawn": B(-62, 36.5), "via": [B(-11, 35.5), B(-8.2, 27)], "mouth": B(-8.2, 14.5), "weight": 1.5,
+				"hop": [B(-8.2, 23.5), B(-8.2, 16.8), 1.3], "shouts": SNEAK_SHOUTS},
+			{"name": "tourniquet_o", "spawn": B(62, 37), "via": [B(14, 36), B(12.6, 27)], "mouth": B(12.6, 14.5), "weight": 2.0,
+				"hop": [B(12.6, 23.5), B(12.6, 16.8), 1.3], "shouts": SNEAK_SHOUTS},
+			{"name": "tourniquet_o2", "spawn": B(62, 36.5), "via": [B(11, 35.5), B(8.2, 27)], "mouth": B(8.2, 14.5), "weight": 1.5,
+				"hop": [B(8.2, 23.5), B(8.2, 16.8), 1.3], "shouts": SNEAK_SHOUTS},
 			# the lanes between the hedges, west and east
-			{"name": "west", "spawn": B(-44, 3.3), "mouth": B(-22, 3.3), "weight": 1.5},
-			{"name": "oost", "spawn": B(58, 3.3), "mouth": B(22, 3.3), "weight": 1.5},
+			{"name": "west", "spawn": B(-44, 3.3), "mouth": B(-22, 3.3), "weight": 1.0},
+			{"name": "oost", "spawn": B(58, 3.3), "mouth": B(22, 3.3), "weight": 1.0},
 		],
 		# the roller coaster: now and then a fatbiker rides it (see Coaster, Game._step_coaster)
 		"coaster": true,
@@ -288,6 +294,8 @@ static func _shifted(m: Dictionary, o: Vector3) -> Dictionary:
 		e.mouth += o
 		if e.has("via"):
 			e.via = e.via.map(func(v): return v + o)
+		if e.has("hop"):
+			e.hop = [e.hop[0] + o, e.hop[1] + o, e.hop[2]]
 	return s
 
 ## Blender [x, y] points to Godot positions on the ground.
@@ -348,5 +356,6 @@ const SHOUTS := {
 		"Ik ben op weg naar de bingo!", "Ik heb voorrang, ik ben 78!", "Hoe rem je met dit ding?!", "Waar zit de bel?!"],
 }
 const PAIN_SHOUTS := ["AUW!", "HÉ!", "Mijn fiets!", "Dat doet pijn, zeg!", "Au, m'n heup!"]
+const SNEAK_SHOUTS := ["Zonder kaartje!", "Kaartje? Nooit van gehoord!", "Hop, erover!", "Gratis naar binnen!", "Ik heb een jaarkaart! Grapje!"]
 const THROW_SHOUTS := ["Pak aan!", "Vang dan!", "Hier, voor jou!", "Opgepast!"]
 const BOSS_SHOUTS := ["VOLUME OMHOOG!", "BASSSSS!", "Hoor je dat?!", "Plein is van mij!"]

@@ -612,7 +612,7 @@ def build():
     templates.append(small)
     props.append(instance(small, 'Player_Table', (-0.38, -11.0, 0)))
     props.append(instance(chair, 'Player_Chair', (0, -11.55, 0), math.pi / 2))
-    props.append(instance(parasols['fab_red'], 'Player_Parasol', (-1.1, -11.6, 0)))
+    # no parasol over your own table here: it would hide the lift hill (and the fatbikers riding it)
 
     # flags round the gate and bunting over the plaza
     for x, y in ((-8.0, 24.0), (8.0, 24.0), (-3.5, 30.0), (3.5, 30.0)):

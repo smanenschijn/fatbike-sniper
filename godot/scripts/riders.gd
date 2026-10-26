@@ -340,7 +340,19 @@ func spawn(type: String, diff: Dictionary) -> Dictionary:
 	var exit = _weighted_entry(entry)
 	var attack = (type == "normal" or type == "duo") and randf() < diff.attack_chance
 	var route = _route(entry, exit, attack)
-	return _spawn_on(type, route.curve, route.attack_point, diff.speed_mul)
+	var r = _spawn_on(type, route.curve, route.attack_point, diff.speed_mul)
+	# entries with a "hop" [from, to, height]: jump that bit (over the turnstiles), whichever way they ride it
+	var c: Curve3D = route.curve
+	var hops := []
+	for e in [entry, exit]:
+		if e.has("hop"):
+			var a := c.get_closest_offset(e.hop[0])
+			var b := c.get_closest_offset(e.hop[1])
+			hops.append([minf(a, b), maxf(a, b), e.hop[2]])
+	r.hops = hops
+	if entry.has("shouts") and type != "boss":
+		effects.bubble(r.root, Vector3(0, 2.5, 0), (entry.shouts as Array).pick_random(), false, 3.0)
+	return r
 
 
 ## A scripted rider (adventure mode): rides the given points (Godot coords). With `attack_near` > 0 it winds
@@ -362,9 +374,46 @@ func spawn_rails(type: String, pts: Array, speed_at: Callable) -> Dictionary:
 	var r = _spawn_on(type, curve, null, 1.0)
 	r.air = true
 	r.speed_at = speed_at
+	r.hit_pad = 0.6   # far away, high up and fast: forgiving
 	(r.blob as Node3D).visible = false
+	(r.root as Node3D).scale = Vector3.ONE * 2.0   # and big, so you spot him
+	(r.pivot as Node3D).add_child(_safety_flag())
 	_place(r, 0.0)
 	return r
+
+
+var _flag_mat: StandardMaterial3D
+
+
+## A tall pole with a bright orange pennant on the back of the bike (as on kids' bikes): easy to spot.
+func _safety_flag() -> Node3D:
+	var n := Node3D.new()
+	n.position = Vector3(-0.15, 0.6, 0)
+	if _flag_mat == null:
+		_flag_mat = StandardMaterial3D.new()
+		_flag_mat.albedo_color = Color("ff6a00")
+		_flag_mat.emission_enabled = true
+		_flag_mat.emission = Color("ff6a00")
+		_flag_mat.emission_energy_multiplier = 1.5
+	var mat := _flag_mat
+	var pole := MeshInstance3D.new()
+	var pm := CylinderMesh.new()
+	pm.top_radius = 0.02
+	pm.bottom_radius = 0.02
+	pm.height = 1.8
+	pole.mesh = pm
+	pole.position.y = 0.9
+	pole.material_override = mat
+	n.add_child(pole)
+	var flag := MeshInstance3D.new()
+	var fm := PrismMesh.new()
+	fm.size = Vector3(0.45, 0.6, 0.02)
+	flag.mesh = fm
+	flag.rotation.z = -PI / 2
+	flag.position = Vector3(-0.3, 1.55, 0)
+	flag.material_override = mat
+	n.add_child(flag)
+	return n
 
 
 ## Is this position inside the player's aiming cone?
@@ -551,7 +600,7 @@ func raycast(origin: Vector3, dir: Vector3, max_dist := 300.0, pad := 0.0) -> Ar
 		var best = null
 		for s in r.spheres:
 			var c: Vector3 = xf * (s[0] as Vector3) - origin
-			var rad: float = s[1] * scale + pad
+			var rad: float = s[1] * scale + pad + r.get("hit_pad", 0.0)
 			var tca = c.dot(dir)
 			var d2 = c.length_squared() - tca * tca
 			if d2 > rad * rad:
