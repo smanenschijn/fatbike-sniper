@@ -27,7 +27,7 @@ const LEVELS := {
 const BULLET_TIME := {"duration": 4.5, "scale": 0.2, "fill_kill": 0.2, "fill_head": 0.12, "fill_knife": 0.2, "bonus": 1.5}
 
 const SCORE := {"kill": 100, "headshot": 50, "multi": 100, "knife": 150, "boss": 500, "wheelie_mul": 2,
-	"rocket": 200, "boss_hit": 10, "boss_part": 500, "boss_head": 2000, "boss_win": 5000, "boss_heart": 1000}
+	"rocket": 200, "boss_hit": 10, "boss_part": 500, "boss_head": 2000, "boss_win": 5000, "boss_heart": 1000, "coaster": 300}
 
 ## The playable squares. All share one frame: the player sits at B(0, -11.55) looking north (+Y in Blender).
 ## center/ring: the loop riders circle; entries: where they come from (spawn -> optional via points -> mouth of the square);
@@ -63,8 +63,26 @@ static var MAPS := {
 		"boss_spot": Vector3(0.0, 0, -10.0), "boss_x": Vector2(2.0, 6.0), "boss_z": Vector2(-11.5, -8.5),
 		"boss_entries": {"LegL": "oost", "LegR": "west", "Torso": "galerij", "ArmL": "markt", "ArmR": "west"},
 	},
+	"wollahbi": {
+		"label": "WOLLAHBI", "sub": "De poort van het pretpark, met de fontein en De Gillende Gozer",
+		"model": "res://assets/models/wollahbi.glb", "legend": "Legende van Wollahbi",
+		"center": B(0, 2), "ring": 9.5, "tight_routes": true, "sun": Vector3(-0.6, 0.55, 0.55),
+		"entries": [
+			# from the park promenade: through the gate, or through the turnstile lanes either side
+			{"name": "poort", "spawn": B(-62, 36), "via": [B(-6, 34.5), B(0, 30)], "mouth": B(0, 15.5), "weight": 3.0},
+			{"name": "tourniquet_w", "spawn": B(-62, 37), "via": [B(-14, 36), B(-10, 31)], "mouth": B(-10, 15.5), "weight": 2.0},
+			{"name": "tourniquet_o", "spawn": B(62, 37), "via": [B(14, 36), B(10, 31)], "mouth": B(10, 15.5), "weight": 2.0},
+			# the lanes between the hedges, west and east
+			{"name": "west", "spawn": B(-44, 3.3), "mouth": B(-22, 3.3), "weight": 1.5},
+			{"name": "oost", "spawn": B(58, 3.3), "mouth": B(22, 3.3), "weight": 1.5},
+		],
+		# the roller coaster: now and then a fatbiker rides it (see Coaster, Game._step_coaster)
+		"coaster": true,
+		"boss_spot": Vector3(0.0, 0, -12.0), "boss_x": Vector2(0.0, 7.0), "boss_z": Vector2(-14.5, -10.0),
+		"boss_entries": {"LegL": "oost", "LegR": "west", "Torso": "poort", "ArmL": "tourniquet_o", "ArmR": "tourniquet_w"},
+	},
 }
-const MAP_ORDER := ["pleintje", "donut"]
+const MAP_ORDER := ["pleintje", "donut", "wollahbi"]
 
 ## The adventure mode: survive on 't Pleintje, walk the streets to the Henri Donutplein, survive there and meet
 ## FATBIKETRON, all in one world. Three models side by side, each in its own frame (Blender x, y): 't Pleintje
@@ -76,7 +94,7 @@ const ADVENTURE := {
 	"square_time": 60.0,
 	"rockets": 8,
 	"speed": 3.3,
-	"frames": {"pleintje": [0.0, 0.0], "route": [0.0, 70.0], "donut": [-76.0, 222.5]},
+	"frames": {"pleintje": [0.0, 0.0], "route": [0.0, 70.0], "donut": [-76.0, 222.5], "wollahbi": [-6.0, 282.5]},
 	"walk": [
 		# stand up from the café table, past the fountain into the north street ...
 		["pleintje", [[0, -11.55], [0.9, -9.6], [5.6, -3.0], [6.2, 7.0], [2.6, 14.0], [0, 19.5], [0, 40]]],
@@ -183,6 +201,54 @@ const ADVENTURE := {
 			[1.2, "wheelie", [[-40, 173], [10, 173], [19, 168], [19, 125], [14, 117], [-20, 116]], false]]},
 		{"at": [10, 172], "riders": [[0.0, "boss", [[-50, 173], [12, 173], [21, 166], [21, 125], [26, 117], [56, 116]], true]]},
 	],
+	# The second walk: from Henri's up the market road, between the stalls (an ambush), into the park and
+	# through the gate of Wollahbi. Points are [x, y] in the frame named per segment / stop / event.
+	"leg2": {
+		"speed": 4.6,   # a short walk: brisker
+		"walk": [
+			["donut", [[0, -11.55], [0.9, -9.6], [4, -5], [8, 4], [11.5, 14], [12.2, 20], [12.2, 40], [12.2, 62]]],
+			["wollahbi", [[-57.8, 10], [-57.8, 24], [-55, 29.5], [-48, 30.5], [-8, 30.5], [-1.5, 28.5], [0, 24], [0, 16],
+				[4.5, 11], [7.6, 4], [7.2, -3], [4, -8], [1, -10], [0, -11.55]]],
+		],
+		"end_look": ["wollahbi", [0, 8]],
+		"leave": ["donut", [11.5, 14]],
+		"arrive": ["wollahbi", [-30, 30.5]],
+		"hide": ["wollahbi", [-57.8, 22]],
+		"show": ["donut", [0.9, -9.6]],
+		"stops": [
+			{"frame": "donut", "at": [12.2, 21.5], "look": [12.2, 40], "min": 14.0, "max": 32.0, "title": "HINDERLAAG OP DE MARKT!", "riders": [
+				# down the lane between the stalls, out into the square or the east road
+				[0.5, "normal", [[40, 93.5], [16, 92], [12.4, 82], [12.6, 30], [13.8, 21], [20, 19.5], [56, 19.5]], true],
+				[1.2, "normal", [[40, 94.5], [16, 93], [12.0, 82], [11.8, 30], [10.5, 19], [4, 10], [-18.5, 17], [-18.5, 58]], true],
+				[2.0, "duo", [[40, 93.5], [16, 92], [12.2, 82], [12.4, 32], [13.6, 21], [22, 19.5], [56, 19.5]], true],
+				[3.0, "normal", [[26, 63.5], [16, 63.5], [12.4, 58], [12.4, 30], [11, 19], [0, 9], [-18.5, 17], [-18.5, 58]], true],
+				# jumpers: over the stalls, landing right next to you
+				[4.5, "normal", [[40, 93.5], [16, 92], [11, 82], [10.2, 47.5], [9.8, 21, 7.0], [8.6, 15], [0, 8], [-18.5, 17], [-18.5, 58]], true],
+				[5.3, "normal", [[40, 94.5], [16, 93], [13.5, 82], [14.4, 47.5], [14.8, 21, 7.0], [17, 19.5], [56, 19.5]], true],
+				[6.5, "wheelie", [[40, 93.5], [16, 92], [12.2, 82], [12.2, 30], [13.5, 21], [22, 19.5], [56, 19.5]], false],
+				[7.5, "duo", [[40, 94.5], [16, 93], [11, 82], [10.2, 47.5], [9.8, 21, 7.5], [8.6, 15], [0, 8], [-18.5, 17], [-18.5, 58]], true],
+				[9.0, "normal", [[26, 63.5], [14, 63], [12.6, 55], [12.6, 30], [13.8, 21], [22, 19.5], [56, 19.5]], true],
+				[9.6, "normal", [[40, 93.5], [16, 92], [11.8, 82], [11.8, 30], [10.6, 19], [4, 10], [-18.5, 17], [-18.5, 58]], true],
+				[11.0, "wheelie", [[40, 94.5], [16, 93], [13.5, 82], [14.4, 47.5], [14.8, 21, 8.0], [17, 19.5], [56, 19.5]], false],
+				# finale: two speaker bosses, one of them over the stalls
+				[12.5, "boss", [[40, 93.5], [16, 92], [12.2, 82], [12.2, 30], [13.5, 21], [22, 19.5], [56, 19.5]], true],
+				[13.5, "duo", [[26, 63.5], [16, 63.5], [12.4, 58], [12.4, 30], [11, 19], [0, 9], [-18.5, 17], [-18.5, 58]], true],
+				[14.5, "normal", [[40, 94.5], [16, 93], [13.5, 82], [14.4, 47.5], [14.8, 21, 7.0], [17, 19.5], [56, 19.5]], true],
+				[15.5, "boss", [[40, 93.5], [16, 92], [11, 82], [10.2, 47.5], [9.8, 21, 6.0], [8.6, 15], [0, 8], [-18.5, 17], [-18.5, 58]], true],
+			]},
+		],
+		"events": [
+			# up the market: head-on, then riders on the park promenade, then out of the gate towards you
+			{"frame": "donut", "at": [12.2, 45], "riders": [[0.0, "normal", [[40, 93.5], [16, 92], [13.2, 82], [13.2, 40], [13.5, 24], [20, 19.5], [56, 19.5]], true],
+				[1.5, "normal", [[26, 63.5], [16, 63.5], [11.4, 58], [11.4, 40], [11.2, 24], [4, 10], [-18.5, 17], [-18.5, 58]], false]]},
+			{"frame": "wollahbi", "at": [-57.8, 12], "riders": [[0.0, "normal", [[20, 33], [-50, 32], [-56.6, 26], [-56.6, 0], [-56.6, -40]], true],
+				[1.2, "wheelie", [[-56, -40], [-58.8, 0], [-58.8, 24], [-52, 32], [-8, 32.5], [62, 33]], false]]},
+			{"frame": "wollahbi", "at": [-40, 30.5], "riders": [[0.0, "duo", [[62, 33], [20, 32.5], [-50, 31.5], [-58.8, 24], [-58.8, -40]], true],
+				[1.0, "normal", [[0, -2], [0, 10], [-1.2, 16], [-1.2, 26], [-8, 32], [-62, 33]], true]]},
+			{"frame": "wollahbi", "at": [-12, 30.5], "riders": [[0.0, "normal", [[10, -2], [10, 12], [10, 16], [10, 31], [14, 35.5], [62, 36]], true],
+				[0.8, "boss", [[0, -4], [-1, 10], [1.0, 16], [1.0, 26], [6, 32], [62, 33]], true]]},
+		],
+	},
 }
 
 ## Blender [x, y] in an adventure frame to a Godot position.

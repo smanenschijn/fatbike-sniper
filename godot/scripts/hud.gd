@@ -656,7 +656,7 @@ func _build_home() -> void:
 	modes.alignment = BoxContainer.ALIGNMENT_CENTER
 	modes.add_theme_constant_override("separation", 28)
 	for m in [[false, "KLASSIEK", "Kies een plein en een tijd.\nHaal er zoveel mogelijk van hun fiets."],
-			[true, "CAMPAGNE", "Van 't Pleintje met je ijsje door de stad\nnaar het Henri Donutplein."]]:
+			[true, "CAMPAGNE", "Van 't Pleintje met je ijsje door de stad\nnaar het Donutplein en Wollahbi."]]:
 		var b = _card_button(m[1], m[2], 380, 150, 64, 16)
 		for st in ["normal", "hover"]:
 			(b.get_theme_stylebox(st) as StyleBoxFlat).bg_color = YELLOW if st == "normal" else Color("ffde66")
@@ -707,7 +707,7 @@ func _build_setup() -> void:
 	_opt_buttons["map"] = []
 	for id in Config.MAP_ORDER:
 		var m: Dictionary = Config.MAPS[id]
-		var b = _card_button(m.label, m.sub, 340, 88)
+		var b = _card_button(m.label, m.sub, 340 if Config.MAP_ORDER.size() < 3 else 270, 88)
 		b.set_meta("value", id)
 		b.pressed.connect(func(): option_changed.emit("map", id))
 		maps.add_child(b)
@@ -783,7 +783,7 @@ func show_setup(adventure: bool) -> void:
 	_home.visible = false
 	_setup.visible = true
 	_setup_title.text = "CAMPAGNE" if adventure else "KLASSIEK"
-	_setup_sub.text = "Overleef 1 minuut op 't Pleintje en loop dan met je ijsje door de stad.\nHinderlagen bij de brug en in de speeltuin, en op het Henri Donutplein nog 1 minuut (+ eindbaas)." \
+	_setup_sub.text = "Overleef 1 minuut op 't Pleintje, het Henri Donutplein en Wollahbi, en loop met je ijsje van plein naar plein.\nHinderlagen bij de brug, in de speeltuin en op de markt. Op Wollahbi wacht de eindbaas." \
 		if adventure else "Kies een plein en een tijd. Haal er zoveel mogelijk van hun fiets."
 	for c in _classic_only:
 		c.visible = not adventure

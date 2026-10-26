@@ -473,7 +473,7 @@ func _parse_auto_args() -> void:
 		elif a == "--adventure":
 			adventure = true
 			_auto.play = true
-		elif a.begins_with("--phase="):   # jump ahead in the adventure: walk_out | route | walk_in | square2
+		elif a.begins_with("--phase="):   # jump ahead in the adventure: walk_out | route | walk_in | square2 | walk2 | route2 | walk_in2 | square3
 			adventure = true
 			_auto.phase = a.substr(8)
 		elif a.begins_with("--routeat="):  # with --phase=route: skip to this many metres along the walk
@@ -483,6 +483,8 @@ func _parse_auto_args() -> void:
 			_auto.play = true
 		elif a == "--nolegs":   # with --bossfight: shoot both of FATBIKETRON's leg bikes off as soon as the fight starts
 			_auto.nolegs = true
+		elif a == "--coaster":   # a fatbiker on the roller coaster right away; autoplay aims at the ones on the rails
+			_auto.coaster = true
 		elif a == "--god":   # can't lose hearts (smoke tests)
 			_auto.god = true
 		elif a == "--noboss":
@@ -505,7 +507,7 @@ func _parse_auto_args() -> void:
 				hud.show_info(true)
 			else:
 				_choose_mode(a.substr(7) == "campagne")
-		elif a.begins_with("--map="):   # pleintje | donut
+		elif a.begins_with("--map="):   # pleintje | donut | wollahbi
 			settings.map = a.substr(6)
 		elif a.begins_with("--level="):   # easy | normal | hard | chill
 			settings.level = a.substr(8)
@@ -551,13 +553,21 @@ func _auto_step(dt: float) -> void:
 		match _auto.phase:
 			"walk_out":
 				game.time = 0.05
-			"route", "walk_in", "square2":
-				# --routeat: metres past the end of 't Pleintje's north street
-				game._start_walk_out()
+			"route", "walk_in", "square2", "walk2", "route2", "walk_in2", "square3":
+				# --routeat: metres past the end of the square you leave (leg 2: the Donutplein's market road)
+				var ph: String = _auto.phase
+				game._start_walk_out(1)
+				if ph.ends_with("2") or ph == "square3":
+					game._sit_down()   # skip ahead to the Donutplein
+					Config.use_map("donut", Config.AP("donut", [0, 0]))
+					game._start_walk_out(2)
+					ph = {"walk2": "walk_out", "route2": "route", "walk_in2": "walk_in", "square3": "square2"}[ph]
 				var at: float = game._marks.leave + _auto.get("route_at", 0.0)
-				if _auto.phase == "walk_in":
+				if ph == "walk_out":
+					at = 0.0
+				elif ph == "walk_in":
 					at = game._marks.arrive - 4.0
-				elif _auto.phase == "square2":
+				elif ph == "square2":
 					at = game.rail.length
 				game.rail.dist = at
 				for ev in game.rail.events:
@@ -593,7 +603,23 @@ func _auto_step(dt: float) -> void:
 	elif _auto.get("play", false) and mode == "playing" and game.state == "playing":
 		# aim at the nearest rider and fire every now and then
 		var best = null
-		for r in riders.list:
+		var watching := false
+		if _auto.get("coaster", false):
+			if not _auto.has("coaster_set"):
+				_auto.coaster_set = true
+				game._coaster_t = 0.3
+			var air = riders.list.filter(func(r): return r.alive and r.get("air", false))
+			_auto.hold = not air.is_empty() and (air[0].root as Node3D).position.y < 12.0
+			inp.zoom_toggle = not air.is_empty()
+			if not air.is_empty():
+				best = air[0]
+			elif world.coaster():   # nobody on the rails: watch the train through the scope
+				var d: Vector3 = (world.coaster().train_position() - world.eye).normalized()
+				inp.yaw = wrapf(atan2(-d.x, -d.z) - game.view_yaw, -PI, PI)
+				inp.pitch = asin(d.y)
+				inp.zoom_toggle = true
+				watching = true
+		for r in ([] if best != null or watching else riders.list):
 			var p: Vector3 = (r.root as Node3D).position
 			var fwd := Vector3(-sin(game.view_yaw), 0, -cos(game.view_yaw))
 			if (p - world.eye).dot(fwd) > 4 and r.alive and (best == null or p.distance_to(world.eye) < best.root.position.distance_to(world.eye)):
@@ -610,7 +636,7 @@ func _auto_step(dt: float) -> void:
 				var on := absf(angle_difference(inp.yaw, want_yaw)) < 0.02 and absf(inp.pitch - asin(d.y)) < 0.02
 				if weapons.current().get("auto", false):
 					inp.fire_down = on
-				elif on and _auto.t - _auto.get("last_fire", -9.0) > 0.7:
+				elif on and _auto.t - _auto.get("last_fire", -9.0) > 0.7 and not _auto.get("hold", false):
 					_auto.last_fire = _auto.t
 					inp.fire_pressed = true
 			else:
@@ -618,7 +644,7 @@ func _auto_step(dt: float) -> void:
 				inp.pitch = asin(d.y)
 				if weapons.current().get("auto", false):
 					inp.fire_down = not _auto.get("knife", false)
-				elif fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false):
+				elif fmod(_auto.t, 1.2) < dt and not _auto.get("knife", false) and not _auto.get("hold", false):
 					inp.fire_pressed = true
 		elif weapons.current().get("auto", false):
 			inp.fire_down = false

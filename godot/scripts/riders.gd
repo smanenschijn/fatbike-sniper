@@ -354,6 +354,19 @@ func spawn_path(type: String, pts: Array, speed_mul: float, attack_near := 0.0, 
 	return r
 
 
+## A fatbiker on the roller coaster: rides the track points (Godot coords, from Coaster.path_points) at the
+## coaster's speed (speed_at: distance along these points -> m/s), upside down through the loop. Never throws.
+func spawn_rails(type: String, pts: Array, speed_at: Callable) -> Dictionary:
+	var curve := smooth_curve(pts)
+	curve.up_vector_enabled = true
+	var r = _spawn_on(type, curve, null, 1.0)
+	r.air = true
+	r.speed_at = speed_at
+	(r.blob as Node3D).visible = false
+	_place(r, 0.0)
+	return r
+
+
 ## Is this position inside the player's aiming cone?
 func in_cone(p: Vector3) -> bool:
 	var d := Vector3(p.x - player_eye.x, 0, p.z - player_eye.z)
@@ -413,6 +426,15 @@ func _spawn_on(type: String, curve: Curve3D, attack_point, speed_mul: float) -> 
 func _place(r: Dictionary, dt: float) -> void:
 	var curve: Curve3D = r.curve
 	var d: float = minf(r.dist, r.len - 0.01)
+	if r.get("air", false):   # on the rails: follow the track's own up (loops included)
+		var p3 := curve.sample_baked(d, true)
+		var fwd := (curve.sample_baked(minf(d + 0.4, r.len), true) - curve.sample_baked(maxf(d - 0.4, 0.0), true)).normalized()
+		var up := curve.sample_baked_up_vector(d, true)
+		up = (up - fwd * up.dot(fwd)).normalized()
+		(r.root as Node3D).transform = Transform3D(Basis(fwd, up, fwd.cross(up)).scaled((r.root as Node3D).scale), p3 + up * 0.15)
+		r.yaw = atan2(-fwd.z, fwd.x)
+		r.bob += dt * r.speed * 1.3
+		return
 	var p = curve.sample_baked(d, true)
 	var ahead = curve.sample_baked(minf(d + 0.4, r.len), true)
 	var t = ahead - p
@@ -465,6 +487,8 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 		var r: Dictionary = list[i]
 		r.knife_cooldown -= dt
 		var speed: float = r.speed
+		if r.has("speed_at"):
+			speed = r.speed_at.call(r.dist)
 		if r.attack_point != null and not r.thrown:
 			var ap: Vector3 = r.attack_point
 			var d = Vector2(r.root.position.x - ap.x, r.root.position.z - ap.z).length()

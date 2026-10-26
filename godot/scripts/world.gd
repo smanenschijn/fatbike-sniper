@@ -47,21 +47,36 @@ func is_adventure() -> bool:
 	return not models.is_empty()
 
 
-## The adventure world: 't Pleintje, the streets and the Donutplein side by side (Config.ADVENTURE.frames),
+## The roller coaster of the square you sit at (Wollahbi), or null.
+func coaster() -> Coaster:
+	return square.get_meta("coaster") if square and square.has_meta("coaster") else null
+
+
+## Bullet time slows the coasters down too.
+func set_time_scale(ts: float) -> void:
+	for m in ([square] if models.is_empty() else models.values()):
+		if m and m.has_meta("coaster"):
+			(m.get_meta("coaster") as Coaster).time_scale = ts
+
+
+## The adventure world: 't Pleintje, the streets, the Donutplein and Wollahbi side by side (Config.ADVENTURE.frames),
 ## with the houses that close off the squares' streets taken away so the walk runs straight through.
 func load_adventure() -> void:
 	_unload()
 	models.pleintje = _instance(Config.MAPS.pleintje.model, Config.AP("pleintje", [0, 0]))
 	models.route = _instance("res://assets/models/route.glb", Config.AP("route", [0, 0]))
 	models.donut = _instance(Config.MAPS.donut.model, Config.AP("donut", [0, 0]))
+	models.wollahbi = _instance(Config.MAPS.wollahbi.model, Config.AP("wollahbi", [0, 0]))
 	# 't Pleintje's north street is closed by a row at y = 56; the Donutplein's east road by "Cap_E"
 	for n in models.pleintje.find_children("StreetN_*", "Node3D", true, false):
 		var gp := (n as Node3D).global_position
 		if absf(gp.z + 56.0) < 0.5 and gp.x > -5.5 and gp.x < 5.5:
 			n.queue_free()
-	var cap = models.donut.find_child("Cap_E", true, false)
-	if cap:
-		cap.queue_free()
+	# ... and the market road north to Wollahbi by "Cap_N"
+	for nm in ["Cap_E", "Cap_N"]:
+		var cap = models.donut.find_child(nm, true, false)
+		if cap:
+			cap.queue_free()
 	for m in models.values():
 		_merge_static(m)
 	square = models.pleintje
@@ -105,6 +120,9 @@ func _instance(path: String, at: Vector3) -> Node3D:
 		var mesh = mi as MeshInstance3D
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mesh.create_trimesh_collision()
+	var c := Coaster.from_model(m)
+	if c:
+		m.set_meta("coaster", c)
 	return m
 
 
@@ -149,7 +167,7 @@ func _merge_static(m: Node3D) -> void:
 
 func _keep_separate(n: Node, root: Node) -> bool:
 	while n and n != root:
-		if n.is_queued_for_deletion() or not (n as Node3D).visible or "Parasol" in n.name:
+		if n.is_queued_for_deletion() or not (n as Node3D).visible or "Parasol" in n.name or n is Coaster:
 			return true
 		n = n.get_parent()
 	return false
