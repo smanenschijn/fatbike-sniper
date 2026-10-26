@@ -477,6 +477,9 @@ def build_rider(M, v):
             lib.set_parent(o, root)
     for o in root.children:  # unique part names inside Blender; the game strips the suffix
         o.name = o.name.split('.')[0]
+    if v.get('v2'):
+        import rig_v2
+        rig_v2.rig_rider(M, v, root)
     return root
 
 
@@ -494,6 +497,10 @@ def finish(bike, basket, riders):
         ck.fabric_uv(parts)
         ck.bake_ao(parts, parts + bike_parts)
         print(f'[riders] AO baked: {r.name}')
+        rig = next((o for o in r.children if o.type == 'ARMATURE'), None)
+        if rig:
+            import rig_v2
+            rig_v2.bind(rig)
 
 
 def build(only=None):
@@ -615,6 +622,19 @@ def render_pilot(vid):
              ('05_hands', (0.75, -0.75, 1.35), (0.3, -0.3, 1.1), 60), ('06_shoes', (0.9, -1.1, 0.55), (0.1, -0.1, 0.4), 50)]
     for name, loc, tgt, lens in shots:
         lib.render(scene, lib.camera('Cam_' + name, loc, tgt, lens), os.path.join(rdir, f'{vid}_{name}.png'))
+    rig = next((o for o in r.children if o.type == 'ARMATURE'), None)
+    if rig:  # one frame of every animation, seen from the front-left
+        cam = lib.camera('Cam_pose', (2.4, -2.4, 1.7), (0.05, 0, 1.0), 45)
+        phone = next(o for o in rig.children if o.name.startswith('Rider_Phone'))
+        for act, f in (('Pedal', 8), ('ShakeFist', 20), ('Shock', 9), ('Phone', 10), ('Windup', 22), ('Throw', 6),
+                       ('Flail', 7), ('Splat', 1)):
+            a = bpy.data.actions[f'{vid}_{act}']
+            rig.animation_data.action = a
+            if a.slots:
+                rig.animation_data.action_slot = a.slots[0]
+            scene.frame_set(f)
+            phone.hide_render = act != 'Phone'
+            lib.render(scene, cam, os.path.join(rdir, f'{vid}_pose_{act}.png'))
 
 
 if __name__ == '__main__':

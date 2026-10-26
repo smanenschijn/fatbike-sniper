@@ -52,15 +52,36 @@ def flat_strip(name, fr, radius, ang, t0, t1, mat, width=0.009, height=0.0035, n
 
 # ------------------------------------------------------------------------------------------- hands
 
+def hand_frame(s, gc):
+    """Grip axis (outward), forward and up around the grip, wrist and knuckle points."""
+    ga = V((-0.015, s * 0.11, 0.005)).normalized()
+    ef = (V((1, 0, 0)) - ga * ga.x).normalized()
+    eu = ga.cross(ef) * s
+    if eu.z < 0:
+        eu = -eu
+    return ga, ef, eu, gc + ef * -0.075 + eu * 0.03, gc + ef * -0.012 + eu * 0.04
+
+
+def joints(v, s):
+    """Rest-pose joint positions of one side (s=+1 left/+Y, -1 right): shared by the mesh builders and the rig."""
+    female = v['sex'] == 'f'
+    gc = V((0.327, s * 0.378, 1.101))
+    ga, ef, eu, wrist, knuck = hand_frame(s, gc)
+    hip = V((-0.17, s * 0.11, 0.93))
+    if s < 0:
+        knee, ankle = V((0.17, s * 0.19, 0.80)), V((0.155, s * 0.15, 0.40))
+    else:
+        knee, ankle = V((0.02, s * 0.2, 0.72)), V((-0.165, s * 0.15, 0.39))
+    return {'sh': V((-0.005, s * (0.2 if female else 0.215), 1.30)), 'el': V((0.14, s * 0.37, 1.15)), 'gc': gc,
+            'wrist': wrist, 'knuck': knuck, 'hip': hip, 'knee': knee, 'ankle': ankle,
+            'toe': ankle + V((0.16, 0, -0.08))}
+
+
 def build_hand(M, s, gc, female=False):
     """A fist around the handlebar grip. gc: point on the grip axis under the middle of the hand."""
     SK = M['skin']
     k = 0.9 if female else 1.0
-    ga = V((-0.015, s * 0.11, 0.005)).normalized()           # grip axis, pointing outward
-    ef = (V((1, 0, 0)) - ga * ga.x).normalized()               # forward around the grip
-    eu = ga.cross(ef) * s                                       # up around the grip
-    if eu.z < 0:
-        eu = -eu
+    ga, ef, eu, wrist, knuck = hand_frame(s, gc)
 
     def around(u, th, R):
         th = math.radians(th)
@@ -68,8 +89,6 @@ def build_hand(M, s, gc, female=False):
 
     p = []
     rg = 0.022
-    wrist = gc + ef * -0.075 + eu * 0.03
-    knuck = gc + ef * -0.012 + eu * 0.04
     # back of the hand: a flattened slab from wrist to knuckles
     p.append(ck.sweep('palm', [wrist, wrist.lerp(knuck, 0.55), knuck],
                       lambda t, a: ellipse(lerp_list([0.036, 0.046, 0.05], t) * k, lerp_list([0.026, 0.026, 0.02], t) * k)(a),
@@ -97,9 +116,8 @@ def build_arm(M, v, s):
     female = v['sex'] == 'f'
     k = 0.87 if female else (1.12 if v.get('build') == 'big' else 1.0)
     T, TR = M['top'], M['trim']
-    sh = V((-0.005, s * (0.2 if female else 0.215), 1.30))
-    el = V((0.14, s * 0.37, 1.15))
-    gc = V((0.327, s * 0.378, 1.101))
+    J = joints(v, s)
+    sh, el, gc = J['sh'], J['el'], J['gc']
     hand, wrist = build_hand(M, s, gc, female)
     fd = (wrist - el).normalized()
     cuff = wrist - fd * 0.045
@@ -170,11 +188,8 @@ def build_leg(M, v, s):
     side = 'L' if s > 0 else 'R'
     female = v['sex'] == 'f'
     k = 0.88 if female else (1.12 if v.get('build') == 'big' else 1.0)
-    hip = V((-0.17, s * 0.11, 0.93))
-    if s < 0:
-        knee, ankle = V((0.17, s * 0.19, 0.80)), V((0.155, s * 0.15, 0.40))
-    else:
-        knee, ankle = V((0.02, s * 0.2, 0.72)), V((-0.165, s * 0.15, 0.39))
+    J = joints(v, s)
+    hip, knee, ankle = J['hip'], J['knee'], J['ankle']
     B = M['bottom']
     hem = ankle + (knee - ankle).normalized() * 0.025
     pts = [hip, knee, hem]

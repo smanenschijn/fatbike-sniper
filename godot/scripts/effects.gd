@@ -139,6 +139,8 @@ func add_debris(node: Node3D, center: Vector3, vel: Vector3, ang: Vector3, opts 
 	var d := {"g": g, "vel": vel, "ang": ang, "radius": opts.get("radius", 0.3), "life": opts.get("life", 3.2),
 		"age": 0.0, "bounce": opts.get("bounce", 0.38), "stars": opts.get("stars", false), "landed": false,
 		"gravity": opts.get("gravity", 1.0)}
+	if opts.has("on_land"):
+		d.on_land = opts.on_land
 	if opts.has("limbs"):   # a rider: flails in the air, lands flat on the ground like a starfish
 		d.body = node
 		d.lie_radius = opts.get("lie_radius", 0.22)
@@ -248,6 +250,8 @@ func _update_debris(dt: float) -> void:
 					stars(g.position + Vector3(0, d.radius + 0.4, 0))
 				if d.has("limbs"):
 					d.ang = Vector3.ZERO
+				if d.has("on_land"):
+					d.on_land.call()
 			d.vel.y = absf(d.vel.y) * d.bounce
 			d.vel.x *= 0.72
 			d.vel.z *= 0.72

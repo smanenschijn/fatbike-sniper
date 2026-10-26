@@ -55,6 +55,7 @@ var _bike_tpl: Node3D
 var _basket_tpl: Node3D
 var _variants: Array = []  # [{node, id, meta}]
 var _knife_tpl: Node3D
+var _anim_libs := {}   # rigged variants: {id: {"legs", "upper"}} (RiderAnim)
 var _boombox_tpl: Node3D
 var _mat_cache := {}
 var _blob_mesh: QuadMesh
@@ -94,6 +95,7 @@ func setup(fx: Effects, eye: Vector3) -> void:
 				if ex is Dictionary and ex.has("age"):
 					meta = ex
 			_variants.append({"node": c, "id": id, "meta": meta})
+	_anim_libs = RiderAnim.libraries(lib)
 	_knife_tpl = (_variants[0].node as Node3D).find_child("Rider_Knife", true, false).duplicate()
 	_knife_tpl.transform = Transform3D.IDENTITY
 	_knife_tpl.scale = Vector3.ONE * 1.6
@@ -211,6 +213,7 @@ func _build(type: String) -> Dictionary:
 	var bike_col: Array = Config.BIKE_COLORS.pick_random()
 	var model = Node3D.new()
 	model.position = Vector3(0.58, 0, 0)
+	var anims := []
 	var bike: Node3D = _bike_tpl.duplicate()
 	bike.transform = Transform3D.IDENTITY
 	_paint(bike, {"BikeFrame": bike_col[0], "BikeAccent": bike_col[1]})
@@ -234,6 +237,10 @@ func _build(type: String) -> Dictionary:
 		var shades = r.find_child("Rider_Sunglasses", true, false)
 		if shades:
 			shades.visible = p.shades
+		if _anim_libs.has(p.id):
+			var a := RiderAnim.attach(r, _anim_libs[p.id], bike.find_child("Bike_Crank", true, false) if i == 0 else null)
+			r.set_meta("anim", a)
+			anims.append(a)
 		model.add_child(r)
 	var pivot = Node3D.new()
 	pivot.position = Vector3(-0.58, 0, 0)
@@ -255,7 +262,7 @@ func _build(type: String) -> Dictionary:
 		boombox.position = Vector3(-0.52 + 0.58, 1.02, 0)
 		pivot.add_child(boombox)
 		root.scale = Vector3.ONE * 1.25
-	return {"root": root, "pivot": pivot, "model": model, "bike": bike, "blob": blob, "boombox": boombox, "age": driver.meta.age}
+	return {"root": root, "pivot": pivot, "model": model, "bike": bike, "blob": blob, "boombox": boombox, "age": driver.meta.age, "anims": anims}
 
 
 # ------------------------------------------------------------ routes
@@ -581,6 +588,8 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			var wheel = (r.bike as Node3D).find_child(wn, true, false) as Node3D
 			if wheel:
 				wheel.rotate_object_local(Vector3(0, 0, 1), -w)
+		for a in r.anims:
+			RiderAnim.ride(a, speed)
 		var dist: float = (r.root as Node3D).position.distance_to(player_eye)
 		r.shout_timer -= dt
 		if r.shout_timer <= 0:
@@ -588,6 +597,8 @@ func step(dt: float, diff: Dictionary, elapsed: float) -> void:
 			if dist < 40:
 				var lines: Array = Config.BOSS_SHOUTS if r.type == "boss" else (Config.SHOUTS.get(r.age, Config.SHOUTS.any) if randf() < 0.55 else Config.SHOUTS.any)
 				effects.bubble(r.root, Vector3(0, 2.5, 0), lines.pick_random())
+				if not r.anims.is_empty() and randf() < 0.6:
+					RiderAnim.react(r.anims[0], "ShakeFist")
 		r.bell_timer -= dt
 		if r.bell_timer <= 0:
 			r.bell_timer = randf_range(4, 9)
@@ -650,6 +661,8 @@ func damage(r: Dictionary, amount: float, dir: Vector3, power: float, shout := t
 		if r.type == "boss":
 			lines.append("Mijn speaker!")
 		effects.bubble(r.root, Vector3(0, 2.9, 0), lines.pick_random(), false, 1.2)
+		for a in r.anims:
+			RiderAnim.react(a, "Shock")
 		return false
 	knock_off(r, dir, power, false)
 	return true
@@ -706,7 +719,8 @@ func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> v
 		var axis = Vector3.UP.cross(flat_v.normalized()) if flat_v.length() > 0.1 else Vector3.UP.cross(fwd)
 		var spin = axis * randf_range(3.5, 5.0) * (1.7 if explode else 1.0) + Vector3(0, randf_range(-2.5, 2.5), 0) + rand_ang.call(0.8)
 		var limbs = []
-		for ln in ["Rider_ArmL", "Rider_ArmR", "Rider_LegL", "Rider_LegR"]:
+		var anim: Dictionary = body.get_meta("anim", {})
+		for ln in ([] if anim else ["Rider_ArmL", "Rider_ArmR", "Rider_LegL", "Rider_LegR"]):
 			var n = body.find_child(ln, true, false) as Node3D
 			if n == null:
 				continue
@@ -715,7 +729,11 @@ func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> v
 			# rest direction shoulder -> wrist / hip -> ankle (model space, see blender/build_riders.py)
 			var rest = Vector3(0.3, -0.185, 0.155 if right else -0.155) if arm else (Vector3(0.325, -0.53, 0.04) if right else Vector3(0.005, -0.54, -0.04))
 			limbs.append({"node": n, "kind": "arm" if arm else "leg", "rest_dir": rest})
-		effects.add_debris(body, center, vel, spin, {"radius": 0.42 * root.scale.x, "lie_radius": 0.24 * root.scale.x, "life": 4.6, "stars": true, "limbs": limbs, "gravity": HANG})
+		var opts := {"radius": 0.42 * root.scale.x, "lie_radius": 0.24 * root.scale.x, "life": 4.6, "stars": true, "limbs": limbs, "gravity": HANG}
+		if anim:   # rigged: the skeleton flails and lands as a starfish (RiderAnim), the debris only flies and rolls him over
+			RiderAnim.knocked(anim)
+			opts.on_land = RiderAnim.landed.bind(anim)
+		effects.add_debris(body, center, vel, spin, opts)
 	if r.boombox:
 		var bb: Node3D = r.boombox
 		effects.add_debris(bb, bb.global_position, push + Vector3(0, 7, 0), rand_ang.call(10.0), {"radius": 0.25, "life": 3.4})
@@ -732,6 +750,9 @@ func knock_off(r: Dictionary, dir: Vector3, power := 6.0, explode := false) -> v
 	var tumble = fwd * randf_range(-7, 7) + Vector3(0, randf_range(-2, 2), 0)
 	effects.add_debris(root, bc, carry * 1.3 + push * 0.3 + Vector3(0, 8 if explode else 2, 0), tumble, {"radius": 0.4, "life": 3.6, "bounce": 0.3})
 	Sfx.knock_off()
+	for o in list:   # the others get a fright
+		if o.id != r.id and not o.anims.is_empty() and (o.root as Node3D).position.distance_to(root.position) < 12.0:
+			RiderAnim.react(o.anims[0], "Shock")
 	for i in list.size():
 		if list[i].id == r.id:
 			list.remove_at(i)
@@ -752,11 +773,16 @@ func start_windup(r: Dictionary, accurate: bool) -> void:
 	r.knife_cooldown = randf_range(3, 5) + settings.windup
 	effects.bubble(r.root, Vector3(0, 2.7, 0), "!", true, settings.windup + 0.15)
 	Sfx.warn()
+	if not r.anims.is_empty():
+		RiderAnim.windup(r.anims[0], settings.windup)
 
 
 func _release_knife(r: Dictionary) -> void:
 	r.windup = 0.0
-	if not can_throw(r):   # rode out of your aim or behind something while winding up: no throw
+	var thrown := can_throw(r)
+	if not r.anims.is_empty():
+		RiderAnim.throw(r.anims[0], thrown)
+	if not thrown:   # rode out of your aim or behind something while winding up: no throw
 		r.thrown = r.attack_point != null
 		return
 	throw_knife(r, r.get("windup_accurate", true))
