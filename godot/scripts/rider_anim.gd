@@ -5,7 +5,7 @@ extends RefCounted
 ## The GLB's animations key every bone, so each player gets a copy with only its own bones' tracks.
 
 const LEG_BONES := ["hips", "thigh.L", "shin.L", "foot.L", "thigh.R", "shin.R", "foot.R"]
-const LOOPS := ["Pedal", "Ride", "Phone", "Flail"]
+const LOOPS := ["Pedal", "Ride", "Phone", "Flail", "Stand"]
 const WHEEL_R := 0.33
 const GEAR := 2.5          # wheel turns per crank turn: lazy e-bike pedalling
 const PHONE_CHANCE := 0.2

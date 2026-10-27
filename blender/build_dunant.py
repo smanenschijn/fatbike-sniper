@@ -478,7 +478,7 @@ def prop_market_stall(kind, c1, c2='fab_cream'):
         x = -1.6 + 3.2 * (k + 0.5) / 8
         p.append(box('ms_canopy', (3.2 / 8 + 0.002, 2.3, 0.03), (x, -0.05, 2.82), M[c1 if k % 2 == 0 else c2], rot=(-tilt, 0, 0), smooth=False))
         p.append(box('ms_valance', (3.2 / 8 + 0.002, 0.02, 0.25), (x, -1.2, 2.92), M[c1 if k % 2 == 0 else c2], smooth=False))
-    names = {'fruit': 'FRUIT', 'kaas': 'KAAS', 'bloemen': 'BLOEMEN', 'wafels': 'STROOPWAFELS'}
+    names = {'fruit': 'FRUIT', 'kaas': 'KAAS', 'bloemen': 'BLOEMEN', 'wafels': 'STROOPWAFELS', 'groente': 'GROENTE'}
     p.append(box('ms_board', (1.9, 0.04, 0.4), (0, -1.23, 2.55), M['white'], smooth=False))
     p.append(text_mesh('ms_name', names[kind], 0.24 if kind != 'wafels' else 0.19, (0, -1.26, 2.55), mat=M['sign_red'], extrude=0.01))
     if kind == 'fruit':
@@ -491,6 +491,20 @@ def prop_market_stall(kind, c1, c2='fab_cream'):
         for j in range(5):
             for h in range(2 if j % 2 else 3):
                 p.append(cyl('ms_cheese', 0.22, 0.12, (-1.1 + j * 0.55, -0.45, 0.95 + h * 0.125), M['cheese'], seg=16))
+    elif kind == 'groente':   # tomatoes, lettuce, carrots, cucumbers
+        for j in range(4):
+            cx = -1.05 + j * 0.7
+            p.append(box('ms_crate', (0.6, 0.45, 0.16), (cx, -0.5, 0.97), M['wood'], smooth=False))
+            for _ in range(8):
+                q = (cx + rng.uniform(-0.2, 0.2), -0.5 + rng.uniform(-0.14, 0.14), 1.1)
+                if j == 0:
+                    p.append(sphere('ms_tomato', 0.06, q, M['flower_red'], seg=8, rings=5))
+                elif j == 1:
+                    p.append(ico('ms_lettuce', 0.1, q, M['leaf_light'], subdiv=1))
+                elif j == 2:
+                    p.append(cyl('ms_carrot', 0.03, 0.22, q, M['fab_orange'], r2=0.005, rot=(math.pi / 2, 0, rng.uniform(0, 3)), seg=6))
+                else:
+                    p.append(cyl('ms_cucumber', 0.035, 0.26, q, M['leaf'], rot=(math.pi / 2, 0, rng.uniform(0, 3)), seg=8))
     elif kind == 'bloemen':
         for j in range(6):
             cx = -1.15 + j * 0.46
@@ -628,9 +642,9 @@ def build():
         P(tree, (x, y, 0), rng.uniform(0, 6.28), s)
     for x, y, rz in ((-5.5, 15.4, 0.0), (12.4, -12.6, 0.0), (-16.0, 12.5, math.pi / 2)):
         P(pbench, (x, y, 0), rz)
-    for x, y in ((-6.2, -10.0), (6.0, -10.0), (14.6, 4.0), (-18.6, 2.4)):
+    for x, y in ((-6.2, -10.0), (6.0, -10.0), (14.6, -3.4), (-18.6, 2.4)):
         P(binm, (x, y, 0))
-    for x, y in ((-18.3, -4.0), (-18.6, 7.0), (14.6, 1.0)):
+    for x, y in ((-18.3, -4.0), (-18.6, 7.0), (15.4, 14.6)):
         P(lamp, (x, y, 0))
     # bike parking in front of the ijssalon block
     for (x, y, rz) in ((5.6, -13.0, 0.0),):
@@ -667,14 +681,17 @@ def build():
     terrace(14.6, -7.5, math.pi / 2, 4, 'fab_black')             # gemeentehuis café, on your side of the square
 
     # the market on the red road between the gallery and the gemeentehuis, with a lane down the middle
+    # and since 2026-10-27 on along the gemeentehuis, out onto the square. Every stall is named Stall_<kind>_<n>:
+    # the game puts a vendor behind it and makes the goods fly when riders crash through or you shoot it.
     stalls = {k: prop_market_stall(k, c) for k, c in (('fruit', 'fab_red'), ('kaas', 'fab_yellow'), ('bloemen', 'fab_green'),
-                                                       ('wafels', 'fab_blue'))}
+                                                       ('wafels', 'fab_blue'), ('groente', 'fab_orange'))}
     templates += list(stalls.values())
     kinds = list(stalls)
-    for j, y in enumerate((27.5, 31.0, 34.5, 38.0, 41.5)):
-        P(stalls[kinds[j % 4]], (9.75, y, 0), math.pi / 2)
-    for j, y in enumerate((26.5, 30.0, 33.5, 37.0, 40.5)):
-        P(stalls[kinds[(j + 2) % 4]], (14.65, y, 0), -math.pi / 2)
+    spots = [((9.75, y), math.pi / 2) for y in (27.5, 31.0, 34.5, 38.0, 41.5)] + \
+            [((14.65, y), -math.pi / 2) for y in (26.5, 30.0, 33.5, 37.0, 40.5)] + \
+            [((14.4, y), -math.pi / 2) for y in (-1.6, 1.9, 5.4, 8.9, 12.4)]
+    for j, ((x, y), rz) in enumerate(spots):
+        props.append(instance(stalls[kinds[(j * 3) % len(kinds)]], f'Stall_{kinds[(j * 3) % len(kinds)]}_{j}', (x, y, 0), rz))
     small = sq.prop_table(0.23, 'PlayerTableMesh')
     templates.append(small)
     props.append(instance(small, 'Player_Table', (-0.38, -11.0, 0)))

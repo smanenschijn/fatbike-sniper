@@ -1,5 +1,7 @@
 class_name World
 extends Node3D
+
+signal loaded   # a map or the adventure world is in place (the market looks for its stalls)
 ## The square you play on (see Config.MAPS): model, sky, sun, collision for shots, markers and the ice cream on the table.
 
 var eye = Vector3(0, 1.2, 11.55)
@@ -45,6 +47,7 @@ func load_map() -> void:
 	sun.look_at_from_position((Config.MAP.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
 	if not ijsje_fall.is_empty():
 		reset_ijsje()
+	loaded.emit()
 
 
 func is_adventure() -> bool:
@@ -88,6 +91,7 @@ func load_adventure() -> void:
 	sun.look_at_from_position((Config.MAPS.pleintje.sun as Vector3).normalized() * 80.0, Vector3.ZERO, Vector3.UP)
 	if not ijsje_fall.is_empty():
 		reset_ijsje()
+	loaded.emit()
 
 
 ## Adventure: make this square the one you sit at (seat, parasols).
@@ -287,7 +291,7 @@ func raycast(origin: Vector3, dir: Vector3, far: float) -> Dictionary:
 	var hit = get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():
 		return {}
-	return {"position": hit.position, "normal": hit.normal, "distance": origin.distance_to(hit.position)}
+	return {"position": hit.position, "normal": hit.normal, "distance": origin.distance_to(hit.position), "collider": hit.collider}
 
 
 ## The waiter folds the terrace parasols so you can look up at the boss (and opens them again later).

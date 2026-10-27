@@ -57,6 +57,8 @@ static var MAPS := {
 			# down the market road, then left into the gallery and out through one of its arches
 			{"name": "galerij", "spawn": B(12.2, 58), "via": [B(12.2, 25.5), B(7.9, 22.1)], "mouth": B(-1.2, 22.1), "weight": 3.0},
 			{"name": "markt", "spawn": B(12.2, 58), "mouth": B(12.2, 17), "weight": 2.0},
+			# down the market road and on along the stalls in front of the gemeentehuis
+			{"name": "kramen", "spawn": B(12.2, 58), "via": [B(12.2, 22), B(12.0, 14), B(11.8, 3)], "mouth": B(7.5, 0.5), "weight": 2.5},
 			# the road between the gemeentehuis and the apartments
 			{"name": "oost", "spawn": B(56, 19.5), "mouth": B(15.5, 19.5), "weight": 1.5},
 		],

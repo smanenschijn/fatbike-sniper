@@ -16,6 +16,10 @@ Animations (30 fps), named '<variant>_<name>':
   Throw     the arm whips forward and returns to the bar
   Flail     arms windmilling, legs kicking (in the air after a hit)
   Splat     lying like a starfish (after landing)
+Standing (market vendors; the game lowers the root by VENDOR_DROP so the soles touch the ground):
+  Stand     on both feet behind the stall, hands on the table, looking around (loop)
+  Shout     right hand cupped at the mouth, left arm waving: "handjesappels!" (one-shot)
+  Duck      knees bent, ducking with the hands over the head (holds the last pose)
 """
 import math
 
@@ -378,6 +382,39 @@ def make_actions(v, rig):
             out[f'foot.{side}#abs'] = True
         return dict(out, spine=(-0.25, 0, 0), chest=(-0.2, 0, 0), head=(-0.2, 0, 0.3))
     P.bake('Splat', 1, splat)
+
+    def standing(**extra):
+        p = {}
+        for side, s in SIDES:
+            p[f'foot.{side}'] = (V((-0.14, s * 0.13, 0.3)), (0, 0, 0))
+            p[f'foot.{side}#abs'] = True
+        p.update(extra)
+        return p
+
+    def stand(t):
+        a = 2 * pi * t
+        hands = {f'hand.{side}': (V((0.03, 0, -0.02 + 0.01 * sin(a + k))), (0, 0, 0)) for k, (side, s) in enumerate(SIDES)}
+        return standing(hips=(0, 0, 0.03 * sin(a)), spine=(0.02 * sin(a), 0, 0), chest=(0.03 * sin(a + 0.6), 0, 0.05 * sin(a)),
+                        head=(0.05 * sin(a * 2 + 1.2), 0, 0.3 * sin(a)), **hands)
+    P.bake('Stand', 90, stand, loop=True)
+
+    def shout(t):
+        k = env(t, 0.15, 0.8)
+        wave = sin(t * 2 * pi * 4) * 0.12 * k
+        mouth = HC + V((0.2, -0.1, -0.12)) - J['R']['wrist']
+        up = J['L']['sh'] + V((0.15, 0.22 + wave, 0.5)) - J['L']['wrist']
+        return standing(**{'hand.R': (mouth * k, (0, -1.4 * k, -0.8 * k)), 'hand.L': (up * k, (0.4 * k, -1.8 * k, 0)),
+                           'chest': (-0.12 * k, 0, 0.1 * k), 'head': (-0.2 * k, 0, -0.15 * k)})
+    P.bake('Shout', 45, shout)
+
+    def duck(t):
+        k = _ease(min(1.0, t / 0.4))
+        out = {}
+        for side, s in SIDES:
+            over = HC + V((0.12, s * 0.12, -0.2 - 0.3 * k)) - J[side]['wrist']
+            out[f'hand.{side}'] = (over * k, (s * 0.6 * k, -1.5 * k, 0))
+        return standing(hips_loc=(0, -0.2 * k, 0), spine=(0.35 * k, 0, 0), chest=(0.25 * k, 0, 0), head=(0.3 * k, 0, 0), **out)
+    P.bake('Duck', 15, duck)
     P.clear()
 
 

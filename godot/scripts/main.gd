@@ -418,6 +418,8 @@ func _process(delta: float) -> void:
 	if mode != "paused":
 		var wdt = dt * game.time_scale() if mode == "playing" else dt
 		effects.step(wdt)
+		game.market.player_eye = world.eye
+		game.market.step(wdt)
 	inp.end_frame()
 	_auto_step(dt)
 

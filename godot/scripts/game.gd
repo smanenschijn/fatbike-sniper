@@ -29,6 +29,7 @@ var bt := {"meter": 0.0, "active": false, "t": 0.0, "scale": 1.0}
 var projectiles: Array = []
 var tracers: Array = []
 var boss: Fatbiketron
+var market: Market
 var _round_id := 0
 var _tip_t := 0.0
 var boss_on := true
@@ -60,6 +61,9 @@ func setup(w: World, r: Riders, wp: Weapons, fx: Effects, h: Hud, cam: Camera3D)
 	riders.player_hit.connect(on_player_hit)
 	for n in [_stone(), _ice_scoop(Weapons.ICE_FLAVOURS[0]), _tracer_line(Vector3.ZERO, Vector3.FORWARD), riders._safety_flag()]:
 		effects.warm(n)   # materials of their own: compile them before the first shot
+	market = Market.new()
+	world.add_child(market)
+	market.setup(world, riders, effects)
 	boss = Fatbiketron.new()
 	world.add_child(boss)
 	boss.setup(self, riders, effects, world.eye)
@@ -76,6 +80,7 @@ func reset(p_round_time: float, p_level: String, p_boss := true, p_adventure := 
 	view_yaw = 0.0
 	riders.clear()
 	effects.clear()
+	market.clear()
 	effects.water = []
 	if adventure:
 		p_round_time = Config.ADVENTURE.square_time
@@ -199,6 +204,11 @@ func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 			_knife_shot(kh[0].knife)
 			any_hit = true
 			continue
+		var mh = market.raycast(origin, dir, limit)
+		if not mh.is_empty() and (rh.is_empty() or mh.t < rh[0].t):
+			_produce_shot(mh.item)
+			any_hit = true
+			continue
 		var ph = boss.raycast_projectiles(origin, dir, limit)
 		var bh = boss.raycast(origin, dir, limit)
 		if not ph.is_empty() and (bh.is_empty() or ph[0].t < bh.t):
@@ -238,6 +248,7 @@ func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 			first_end = end_pt
 		if hits.is_empty() and not wh.is_empty():
 			effects.puff(wh.position, Color("d8cbb5"), 1 if w.pellets > 1 else 4, 0.25 if w.pellets > 1 else 0.5)
+			market.shot(wh.collider, wh.position, dir)
 	if muzzle != null:
 		effects.muzzle_flash(muzzle, 0.7 if w.key == "shotgun" else 0.55)
 		if w.key == "sniper" and first_end != null:
@@ -259,6 +270,8 @@ func fire_hitscan(w: Dictionary, origin: Vector3, dirs: Array, muzzle) -> void:
 			kills.append({"rider": r, "head": e.head, "point": e.point})
 	if not kills.is_empty():
 		_score_kills(kills)
+		for k in kills:   # knocked off next to a stall: the goods go with him
+			market.bump(k.point, 1.0, 5.0)
 	_after_shot(any_hit)
 
 
@@ -370,6 +383,10 @@ func _update_projectiles(dt: float) -> void:
 		var wh = world.raycast(prev, dir, length + d.radius)
 		var rh = riders.raycast(prev, dir, wh.distance if not wh.is_empty() else length + d.radius, 0.2)
 		var kh = riders.raycast_knives(prev, dir, length + 0.2)
+		var mh = market.raycast(prev, dir, length + 0.2)
+		if not mh.is_empty():
+			_produce_shot(mh.item)
+			p.hit_any = true
 		var ph = boss.raycast_projectiles(prev, dir, length + 0.4)
 		var bh = boss.raycast(prev, dir, wh.distance if not wh.is_empty() else length + d.radius)
 		var done = false
@@ -407,6 +424,8 @@ func _update_projectiles(dt: float) -> void:
 			done = true
 		elif not wh.is_empty() or next.y < 0 or p.age > 4.0:
 			var at: Vector3 = wh.position if not wh.is_empty() else next
+			if not wh.is_empty() and not d.has("explode"):
+				market.shot(wh.collider, at, dir)
 			if d.has("explode"):
 				_explode(at, p)
 			elif d.has("ice"):
@@ -433,6 +452,7 @@ func _explode(point: Vector3, p: Dictionary) -> void:
 	effects.explosion(point)
 	Sfx.explosion(point.distance_to(camera.global_position))
 	var R: float = p.w.projectile.explode
+	market.bump(point, R, 9.0)
 	var kills = []
 	for r in riders.in_radius(point, R):
 		var dir: Vector3 = (r.root as Node3D).position - point
@@ -462,6 +482,13 @@ func _after_shot(hit: bool) -> void:
 		stats.hits += 1
 	elif state == "playing" and randf() < level.retaliate:
 		riders.retaliate()
+
+
+func _produce_shot(f: Dictionary) -> void:
+	var at: Vector3 = (f.node as Node3D).global_position
+	var res: Array = market.pop(f)
+	var n := pts(res[0])
+	_add_score(n, at, "%s +%d" % [res[1], n], "bonus")
 
 
 func _knife_shot(k: Dictionary) -> void:
