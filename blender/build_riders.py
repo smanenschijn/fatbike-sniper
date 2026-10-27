@@ -34,8 +34,7 @@ V = Vector
 
 # ------------------------------------------------------------------------------------------- variants
 VARIANTS = [
-    dict(id='V01', sex='m', age='adult', hair='broccoli', top='tracksuit', bottom='trackpants', facial='goatee', chain=True,
-         v2=True),
+    dict(id='V01', sex='m', age='adult', hair='broccoli', top='tracksuit', bottom='trackpants', facial='goatee', chain=True),
     dict(id='V02', sex='m', age='adult', hair='short', cap='back', top='tshirt', bottom='shorts', facial='stubble'),
     dict(id='V03', sex='m', age='teen', hair='buzz', headphones=True, top='tank', bottom='shorts', shoes='color', braces=True),
     dict(id='V04', sex='m', age='adult', hair='bald', top='tank', bottom='jeans', facial='beard', build='big'),
@@ -463,7 +462,7 @@ def build_rider(M, v):
     root['hairGroup'] = HAIR_GROUP[v['age']]
     root['basket'] = bool(v.get('basket'))
     root['cap'] = v.get('cap', '')
-    if v.get('v2'):
+    if v.get('v2', True):
         import rider_v2 as r2
         parts = [r2.build_torso(M, v), r2.build_head(M, v), r2.build_hair(M, v), fb.build_knife(M),
                  r2.build_arm(M, v, 1), r2.build_arm(M, v, -1), r2.build_leg(M, v, 1), r2.build_leg(M, v, -1)]
@@ -477,7 +476,7 @@ def build_rider(M, v):
             lib.set_parent(o, root)
     for o in root.children:  # unique part names inside Blender; the game strips the suffix
         o.name = o.name.split('.')[0]
-    if v.get('v2'):
+    if v.get('v2', True):
         import rig_v2
         rig_v2.rig_rider(M, v, root)
     return root
@@ -534,6 +533,7 @@ def preview_colors(riders):
     for i, root in enumerate(riders):
         cmap = {'Skin': PREVIEW_SKIN[i], 'Hair': PREVIEW_HAIR[i], 'Brow': PREVIEW_HAIR[i], 'Top': PREVIEW_TOP[i],
                 'Bottom': PREVIEW_BOTTOM[i], 'Cap': PREVIEW_TOP[(i + 5) % 12]}
+        cmap.update({'Top_Rib': cmap['Top'], 'Bottom_Rib': cmap['Bottom']})
         for o in root.children_recursive:
             if o.type != 'MESH':
                 continue
@@ -541,8 +541,7 @@ def preview_colors(riders):
                 if slot.material and slot.material.name in cmap:
                     m = slot.material.copy()
                     rgb = lib.hex_rgb(cmap[slot.material.name])
-                    b = next(n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
-                    b.inputs['Base Color'].default_value = (*rgb, 1)
+                    ck.set_color(m, (*rgb, 1))
                     slot.link = 'OBJECT'
                     slot.material = m
 

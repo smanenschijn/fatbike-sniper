@@ -336,6 +336,19 @@ def fabric(m, kind, normal_strength=0.6):
     return m
 
 
+def set_color(m, rgba):
+    """Change a kit material's flat colour (the constant feeding the texture/AO multiplies, or the BSDF itself)."""
+    b = _bsdf(m)
+    if not b.inputs['Base Color'].links:
+        b.inputs['Base Color'].default_value = rgba
+        return
+    for nd in m.node_tree.nodes:
+        if nd.type == 'MIX' and nd.data_type == 'RGBA':
+            for i in (6, 7):
+                if not nd.inputs[i].links:
+                    nd.inputs[i].default_value = rgba
+
+
 def variant(m, suffix, **overrides):
     """A copy of a recolourable material that keeps its in-game colour key (Top -> Top_Rib)."""
     name = f'{m.name}_{suffix}'

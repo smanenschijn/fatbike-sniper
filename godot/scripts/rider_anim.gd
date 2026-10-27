@@ -41,8 +41,8 @@ static func libraries(lib: Node) -> Dictionary:
 
 ## Give a freshly duplicated rider its players. driver: pedals and turns `crank`; a passenger just sits.
 static func attach(body: Node3D, libs: Dictionary, crank: Node3D) -> Dictionary:
-	var rig := body.find_child("Rig", false, false) as Node3D
-	var skel := rig.find_child("Skeleton3D", false, false) as Skeleton3D
+	var skel := body.find_child("Skeleton3D", true, false) as Skeleton3D
+	var rig := skel.get_parent() as Node3D   # "Rig", "Rig_001", ... (Blender keeps names unique)
 	var legs := AnimationPlayer.new()
 	var upper := AnimationPlayer.new()
 	legs.name = "Legs"
