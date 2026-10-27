@@ -16,19 +16,67 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(__file__))
 import lib  # noqa: E402
 import textures  # noqa: E402
+import build_interiors as interiors  # noqa: E402
 from lib import (box, cyl, ico, join, material, sphere, torus, tube, text_mesh,  # noqa: E402
                  extrude_profile, instance)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 V = Vector
 rng = random.Random(42)
+irng = random.Random(7)   # interiors: a separate stream so the layout of the squares stays the same
 M = {}
 
 
 # ================================================================ materials
 
+def interior_material(name, png, dim=1.0, glow=0.0, rough=0.08):
+    """A room behind glass: the rendered interior as colour (dimmed like a real window by day), a glossy coat for
+    reflections, optionally glowing (lit shops)."""
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+    m = bpy.data.materials.new(name)
+    b = lib._principled(m)
+    nt = m.node_tree
+    t = nt.nodes.new('ShaderNodeTexImage')
+    t.image = bpy.data.images.load(png, check_existing=True)
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type, mix.blend_type = 'RGBA', 'MULTIPLY'
+    mix.inputs['Factor'].default_value = 1.0
+    nt.links.new(t.outputs['Color'], mix.inputs[6])
+    mix.inputs[7].default_value = (dim, dim, dim, 1)
+    nt.links.new(mix.outputs[2], b.inputs['Base Color'])
+    b.inputs['Roughness'].default_value = rough
+    m['keep_uv'] = True   # lib.box_uv must not re-project the atlas UVs
+    if glow:
+        nt.links.new(t.outputs['Color'], b.inputs['Emission Color'])
+        b.inputs['Emission Strength'].default_value = glow
+    return m
+
+
+def card(name, w, h, center, mat, uv, y_off=0.0):
+    """A pane in the facade plane (facing -Y) showing the atlas rect uv = (u0, v0, u1, v1)."""
+    import bmesh
+    bm = bmesh.new()
+    x, y, z = center
+    vs = [bm.verts.new((x - w / 2, y + y_off, z - h / 2)), bm.verts.new((x + w / 2, y + y_off, z - h / 2)),
+          bm.verts.new((x + w / 2, y + y_off, z + h / 2)), bm.verts.new((x - w / 2, y + y_off, z + h / 2))]
+    f = bm.faces.new(vs)
+    f.normal_update()
+    if f.normal.y > 0:
+        f.normal_flip()
+    lay = bm.loops.layers.uv.new('UVMap')
+    u0, v0, u1, v1 = uv
+    for loop in f.loops:
+        co = loop.vert.co
+        loop[lay].uv = (u0 + (co.x - (x - w / 2)) / w * (u1 - u0), v0 + (co.z - (z - h / 2)) / h * (v1 - v0))
+    return lib.obj_from_bm(bm, name, mat, smooth=False)
+
+
 def make_materials():
     tx = textures.ensure(os.path.join(ROOT, 'assets', 'textures'))
+    tex_dir = os.path.join(ROOT, 'assets', 'textures')
+    M['win_int'] = interior_material('WindowInterior', os.path.join(tex_dir, 'window_interiors.png'), dim=0.42)
+    M['shop_int'] = interior_material('ShopInterior', os.path.join(tex_dir, 'shop_interiors.png'), dim=0.42, glow=0.05)
     t = lambda name, key, rough=0.85, ns=1.0: lib.tex_material(name, *tx[key], rough=rough, normal_strength=ns)
     M.update({
         'klinkers': t('Klinkers', 'klinkers', 0.85, 1.2),
@@ -116,7 +164,7 @@ GABLES = ['stepped', 'stepped', 'neck', 'neck', 'bell', 'bell', 'spout', 'cornic
 # ================================================================ house parts (local: facade at y=0 facing -Y, x in [0, w])
 
 def window(xc, zc, ww, wh, frame, shutters=None, flowers=False):
-    p = [box('glass', (ww, 0.03, wh), (xc, -0.015, zc), M['glass'], smooth=False)]
+    p = [card('glass', ww, wh, (xc, -0.015, zc), M['win_int'], interiors.window_uv(irng.randrange(interiors.WINDOW_CELLS)))]
     f, fd = 0.075, 0.07
     p.append(box('frame', (ww + 2 * f, fd, f), (xc, -fd / 2, zc + wh / 2 + f / 2), M[frame], smooth=False))
     p.append(box('frame', (ww + 2 * f, fd, f), (xc, -fd / 2, zc - wh / 2 - f / 2), M[frame], smooth=False))
@@ -169,14 +217,15 @@ def shopfront(w, gf, name, frame_mat, sign_mat, awning):
     p = []
     p.append(box('pui', (w - 0.3, 0.1, gf - 0.35), (w / 2, -0.05, (gf - 0.35) / 2), M[frame_mat], smooth=False))
     gx0, gx1 = 0.45, w - 1.7
-    p.append(box('etalage', (gx1 - gx0, 0.04, gf - 1.75), ((gx0 + gx1) / 2, -0.12, 0.6 + (gf - 1.75) / 2), M['glass'], smooth=False))
+    p.append(card('etalage', gx1 - gx0, gf - 1.75, ((gx0 + gx1) / 2, -0.12, 0.6 + (gf - 1.75) / 2), M['shop_int'], interiors.shop_uv(name)))
     p.append(box('etalage_sill', (gx1 - gx0 + 0.1, 0.16, 0.08), ((gx0 + gx1) / 2, -0.16, 0.56), M['stone'], smooth=False))
     nb = max(1, int((gx1 - gx0) / 1.4))
     for i in range(1, nb):
         x = gx0 + (gx1 - gx0) * i / nb
         p.append(box('etalage_bar', (0.06, 0.06, gf - 1.75), (x, -0.15, 0.6 + (gf - 1.75) / 2), M[frame_mat], smooth=False))
     dx = w - 1.05
-    p.append(box('shopdoor', (0.9, 0.04, 2.35), (dx, -0.12, 1.2), M['glass'], smooth=False))
+    u0, v0, u1, v1 = interiors.shop_uv(name)
+    p.append(card('shopdoor', 0.9, 2.35, (dx, -0.12, 1.2), M['shop_int'], (u0 + (u1 - u0) * 0.75, v0, u1, v1)))
     p.append(box('shopdoor_bar', (0.9, 0.05, 0.08), (dx, -0.14, 1.0), M[frame_mat], smooth=False))
     # sign board with the shop name
     sz = gf - 0.5
@@ -280,7 +329,9 @@ def house(name, w, d, floors, style, wall, frame, shop=None, roof=None, shutters
         p += shopfront(w, gf, shop['name'], shop['frame'], shop['sign'], shop['awning'])
     else:
         dxc = w - 0.9 if w > 3.5 else w / 2
-        p += door(dxc, 1.0, 2.35, rng.choice(DOORS), frame)
+        dmat = rng.choice(DOORS)
+        p += door(dxc, 1.0, 2.35, dmat, frame)
+        p += door_details(dxc, dmat, frame)
         if w > 3.5:
             free = w - 1.9
             n = max(1, int(round(free / 1.9)))
@@ -319,8 +370,44 @@ def house(name, w, d, floors, style, wall, frame, shop=None, roof=None, shutters
         for i in range(int(w / 0.35)):
             p.append(box('dentil', (0.12, 0.1, 0.12), (0.2 + i * 0.35, -0.38, H - 0.4), M['stone'], smooth=False))
         p += pitched_roof(w, 1.0, d, H + 0.25, w * 0.35, roof, wall)
+    p += facade_details(w, d, H, wall, rh if pts else 0.0)
     o = join(p, name)
     return o, H
+
+
+HOUSE_NO = [0]
+
+
+def door_details(dxc, dmat, frame):
+    """House number plate, letterbox and doorbell (in the door's own materials: no extra draw calls)."""
+    HOUSE_NO[0] += irng.choice((1, 2, 2, 3))
+    num = str(HOUSE_NO[0])
+    px = dxc - 0.72
+    return [box('numplate', (0.1 + 0.07 * len(num), 0.03, 0.16), (px, -0.03, 2.2), M[frame], bevel=0.01),
+            text_mesh('housenumber', num, 0.1, (px, -0.05, 2.2), mat=M[dmat], extrude=0.008),
+            box('letterbox', (0.3, 0.04, 0.07), (dxc, -0.08, 0.95), M['gold'], bevel=0.01),
+            cyl('bell', 0.03, 0.03, (px, -0.03, 1.45), M['gold'], rot=(math.pi / 2, 0, 0), seg=10)]
+
+
+def facade_details(w, d, H, wall, rh):
+    """Zinc drainpipe down one side, iron wall anchors on brick, a chimney on the roof (house materials only)."""
+    p = []
+    x = 0.12 if irng.random() < 0.5 else w - 0.12
+    p += [tube('drainpipe', (x, -0.09, 0.05), (x, -0.09, H - 0.15), 0.05, M['stone_dark'], seg=8),
+          tube('drain_top', (x, -0.09, H - 0.15), (x, 0.1, H + 0.05), 0.05, M['stone_dark'], seg=8),
+          box('hopper', (0.16, 0.16, 0.18), (x, -0.09, H - 0.15), M['stone_dark'], smooth=False)]
+    for z in range(1, int(H / 1.6)):
+        p.append(box('pipe_clamp', (0.14, 0.14, 0.04), (x, -0.09, z * 1.6), M['stone_dark'], smooth=False))
+    if wall.startswith('brick'):   # muurankers: the iron S-anchors tying the floors to the facade
+        for z in (3.9 + 3.05 * k for k in range(int((H - 3.9) / 3.05) + 1)):
+            for xa in (0.35, w - 0.35):
+                p.append(box('anchor', (0.06, 0.04, 0.5), (xa, -0.03, z + 0.08), M['stone_dark'], rot=(0, 0.25, 0), smooth=False))
+                p.append(box('anchor_x', (0.32, 0.04, 0.06), (xa, -0.03, z + 0.08), M['stone_dark'], smooth=False))
+    if rh > 1.5 and irng.random() < 0.7:   # a chimney sticking out of the roof behind the gable
+        cx = irng.uniform(0.3, 0.7) * w
+        p += [box('chimney', (0.6, 0.5, rh * 0.75 + 0.6), (cx, d * 0.45, H + rh * 0.37 + 0.3), M[wall], smooth=False),
+              box('chimney_cap', (0.72, 0.62, 0.1), (cx, d * 0.45, H + rh * 0.75 + 0.65), M['stone'], smooth=False)]
+    return p
 
 
 # ================================================================ rows of houses
@@ -469,25 +556,46 @@ def church():
 # ================================================================ props (one mesh each, instanced)
 
 def prop_tree():
-    p = [tube('trunk', (0, 0, 0), (0, 0, 3.4), 0.2, M['bark'], r2=0.13, seg=10)]
-    for a in range(4):
-        ang = a * math.pi / 2 + 0.4
-        p.append(tube('branch', (0, 0, 2.6), (math.cos(ang) * 1.1, math.sin(ang) * 1.1, 4.3), 0.08, M['bark'], r2=0.04, seg=6))
+    """A stylised street tree: a leaning trunk with a root flare splitting into branches, under a soft canopy
+    of five or six leafy clumps (voxel-merged, leaf texture, baked AO: dark inside, light on top)."""
+    import crowdkit as ck
+    trng = random.Random(3)
+    leaf = M.get('tree_leaf')
+    if leaf is None:
+        ck.ensure_fabrics(os.path.join(ROOT, 'assets', 'textures'))
+        leaf = M['tree_leaf'] = ck.use_ao(ck.fabric(material('TreeLeaves', '#5c9a34', rough=0.8), 'foliage', normal_strength=1.2))
+        M['tree_bark'] = ck.use_ao(material('TreeBark', '#5a4636', rough=0.95))
+    bark = M['tree_bark']
+    p = [ck.sweep('trunk', [V((0, 0, -0.05)), V((0.05, 0.02, 1.2)), V((-0.05, 0.05, 2.6)), V((0.0, 0.0, 3.3))],
+                  lambda t, a: (0.32 - 0.14 * t + 0.14 * math.exp(-t * 14)) * (1 + 0.06 * math.sin(5 * a)), bark, seg=12, samples=16,
+                  caps=(False, True))]
+    tops = []
+    for k in range(4):   # main branches into the crown
+        ang = k * math.pi / 2 + 0.5 + trng.uniform(-0.25, 0.25)
+        tip = V((math.cos(ang) * 1.5, math.sin(ang) * 1.5, 5.0 + trng.uniform(-0.3, 0.4)))
+        mid = V((math.cos(ang) * 0.6, math.sin(ang) * 0.6, 3.9))
+        p.append(ck.sweep('branch', [V((0, 0, 2.9)), mid, tip], lambda t, a: 0.14 - 0.09 * t, bark, seg=8, samples=10))
+        tops.append(tip)
     blobs = []
-    greens = ['leaf', 'leaf', 'leaf_dark', 'leaf_light']
-    for i in range(34):
-        d = V((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.7, 1))).normalized() * rng.uniform(0.75, 1.0)
-        c = V((0, 0, 5.3)) + V((d.x * 2.2, d.y * 2.2, d.z * 1.7))
-        blobs.append(ico('canopy', rng.uniform(0.7, 1.1), c, M[greens[i % 4]], subdiv=2))
-    can = join(blobs, 'canopy_tmp')
-    tex = bpy.data.textures.new('LeafNoise', 'CLOUDS')
-    tex.noise_scale = 0.28
-    d = can.modifiers.new('leafy', 'DISPLACE')
-    d.texture = tex
-    d.strength = 0.3
-    p.append(can)
+    centres = [V((0, 0, 5.9))] + [t + V((0, 0, 0.4)) for t in tops] + [V((0.3, -0.3, 6.8))]
+    for c in centres:   # every clump: a few overlapping spheres
+        for _ in range(5):
+            o = c + V((trng.uniform(-0.6, 0.6), trng.uniform(-0.6, 0.6), trng.uniform(-0.35, 0.45)))
+            blobs.append(sphere('clump', trng.uniform(0.75, 1.05), o, leaf, scale=(1, 1, 0.85), seg=16, rings=8))
+    canopy = join(blobs, 'canopy_tmp')
+    tex = bpy.data.textures.new('LeafLumps', 'CLOUDS')
+    tex.noise_scale = 0.35
+    dsp = canopy.modifiers.new('lumps', 'DISPLACE')
+    dsp.texture = tex
+    dsp.strength = 0.35
+    lib.bake(canopy)
+    ck.remesh(canopy, 0.1, smooth=4, target=4500)
+    p.append(canopy)
     p.append(box('grate', (1.4, 1.4, 0.04), (0, 0, 0.02), M['iron'], smooth=False))
-    return join(p, 'Tree')
+    tree = join(p, 'Tree')
+    ck.fabric_uv([tree])
+    ck.bake_ao([tree], [tree], rays=24, dist=1.6, strength=0.75, cavity=0.6, floor=0.35)
+    return tree
 
 
 def prop_parasol(fabric):
@@ -617,6 +725,56 @@ def prop_rack():
         p.append(torus('hoop', 0.35, 0.02, (i * 0.7, 0, 0.35), M['chrome'], segU=12, segV=4, rot=(math.pi / 2, 0, 0),
                        arc=(0, math.pi)))
     return join(p, 'BikeRack')
+
+
+def prop_kliko(lid):
+    p = [box('kliko', (0.58, 0.72, 1.0), (0, 0, 0.55), M[lid], bevel=0.03),
+         box('kliko_lid', (0.62, 0.8, 0.06), (0, -0.03, 1.08), M[lid], bevel=0.02)]
+    for s in (-1, 1):
+        p.append(cyl('kliko_wheel', 0.1, 0.06, (s * 0.25, 0.32, 0.1), M['rubber'], rot=(0, math.pi / 2, 0), seg=12))
+    return join(p, f'Kliko_{lid}')
+
+
+def prop_pigeon():
+    grey = M.setdefault('pigeon', material('PigeonGrey', '#8a8f9a', rough=0.7))
+    neck = M.setdefault('pigeon_neck', material('PigeonNeck', '#4f7a6a', rough=0.3, coat=0.6))
+    p = [sphere('pg_body', 0.09, (0, 0, 0.11), grey, scale=(1.4, 0.9, 0.85), seg=12, rings=6),
+         sphere('pg_head', 0.045, (0.11, 0, 0.2), neck, seg=10, rings=5),
+         cyl('pg_beak', 0.012, 0.035, (0.16, 0, 0.2), M['stone_dark'], rot=(0, math.pi / 2, 0), r2=0.002, seg=6),
+         box('pg_tail', (0.1, 0.06, 0.02), (-0.15, 0, 0.12), M['stone_dark'], rot=(0, -0.3, 0), smooth=False)]
+    for s in (-1, 1):
+        p.append(tube('pg_leg', (0.0, s * 0.03, 0.06), (0.01, s * 0.03, 0.0), 0.007, M['flower_red'], seg=4))
+    return join(p, 'Pigeon')
+
+
+def street_life(bikes, P):
+    """A little Dutch street life: manholes, wheelie bins at the doors, bikes against the facades, pigeons pecking
+    round the fountain (Pigeon_*: they peck in-game). Kept to the edges so the square stays readable."""
+    out = []
+    for (x, y) in ((-8.0, 0.5), (9.0, 8.0), (3.5, -6.0), (-13.0, 11.0)):   # manholes
+        out += [cyl('putdeksel', 0.33, 0.02, (x, y, 0.01), M['iron'], seg=20),
+                torus('putdeksel_ring', 0.33, 0.025, (x, y, 0.012), M['stone_dark'], segU=20, segV=4)]
+    for k in range(4):
+        for j in range(3):
+            out.append(box('putdeksel_rib', (0.5, 0.03, 0.01), ((-8.0, 9.0, 3.5, -13.0)[k], (0.5, 8.0, -6.0, 11.0)[k] + (j - 1) * 0.15, 0.025),
+                           M['stone_dark'], smooth=False))
+    out = [join(out, 'Manholes')]
+    klikos = [prop_kliko('bin_green'), prop_kliko('stone_dark')]
+    for k, (x, y, rz) in enumerate(((-21.2, 12.5, -math.pi / 2), (21.2, 2.8, math.pi / 2), (-21.2, -5.5, -math.pi / 2))):
+        P(klikos[k % 2], (x, y, 0), rz)
+    for (x, y, rz) in ((21.25, 11.5, 0.0), (-21.3, 7.8, math.pi), (14.0, 15.3, math.pi / 2)):   # bikes against the facades
+        P(bikes[irng.randrange(4)], (x, y, 0), rz + irng.uniform(-0.06, 0.06))
+    pigeon = prop_pigeon()
+    for k in range(7):
+        a = irng.uniform(0, math.tau)
+        r = irng.uniform(2.6, 4.2)
+        out.append(instance(pigeon, f'Pigeon_{k}', (math.cos(a) * r, 3 + math.sin(a) * r, 0), irng.uniform(0, math.tau)))
+    pigeon.location = (0, 0, -50)
+    pigeon.hide_render = True
+    for o in klikos:
+        o.location = (0, 0, -50)
+        o.hide_render = True
+    return out
 
 
 def fountain():
@@ -762,6 +920,7 @@ def build():
     fo = fountain()
     fo.location = (0, 3, 0)
     props.append(fo)
+    props += street_life(bikes, P)
     # bike racks with parked omafietsen
     for (x, y, rz) in ((-19.6, -11.8, math.pi / 2),):
         P(rack, (x, y, 0), rz)

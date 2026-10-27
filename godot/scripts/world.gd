@@ -12,6 +12,10 @@ var _dusk_tween: Tween
 var _ijs_init := {}
 var ijsje_fall := {}
 var _ijs_bits: Array = []
+var _ducks: Array = []   # [{node, home, phase, r}]: paddle in slow circles on the gracht, bobbing
+var _pigeons: Array = []   # [{node, yaw, phase, rate}]: peck at the klinkers now and then
+var _water_mat: ShaderMaterial
+var _t := 0.0
 
 
 var square: Node3D
@@ -106,6 +110,8 @@ func _unload() -> void:
 		square.queue_free()
 	models.clear()
 	square = null
+	_ducks.clear()
+	_pigeons.clear()
 
 
 func _instance(path: String, at: Vector3) -> Node3D:
@@ -115,6 +121,7 @@ func _instance(path: String, at: Vector3) -> Node3D:
 	var chair = m.find_child("Player_Chair", true, false)
 	if chair:
 		chair.free()
+	_dress(m)
 	# static collision for shots (trimesh per mesh)
 	for mi in m.find_children("*", "MeshInstance3D", true, false):
 		var mesh = mi as MeshInstance3D
@@ -166,11 +173,62 @@ func _merge_static(m: Node3D) -> void:
 
 
 func _keep_separate(n: Node, root: Node) -> bool:
+	if n is GeometryInstance3D and (n as GeometryInstance3D).material_override:   # the gracht's water shader
+		return true
 	while n and n != root:
-		if n.is_queued_for_deletion() or not (n as Node3D).visible or "Parasol" in n.name or n is Coaster:
+		if n.is_queued_for_deletion() or not (n as Node3D).visible or "Parasol" in n.name or n is Coaster or n.name.begins_with("Duck_") or n.name.begins_with("Pigeon_"):
 			return true
 		n = n.get_parent()
 	return false
+
+
+## Level dressing that glTF can't carry: baked AO (trees) in the vertex colours, the gracht's water shader, the ducks.
+func _dress(m: Node3D) -> void:
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var mesh := (mi as MeshInstance3D).mesh
+		if mesh == null:
+			continue
+		for si in mesh.get_surface_count():
+			if mesh.surface_get_format(si) & Mesh.ARRAY_FORMAT_COLOR:
+				var mat := mesh.surface_get_material(si) as BaseMaterial3D
+				if mat:
+					mat.vertex_color_use_as_albedo = true
+	var water := m.find_child("Gracht_Water", true, false) as MeshInstance3D
+	if water:
+		water.material_override = _water()
+	for d in m.find_children("Duck_*", "Node3D", true, false):
+		var n := d as Node3D
+		_ducks.append({"node": n, "home": n.position, "phase": randf() * TAU, "r": randf_range(0.6, 1.4)})
+	for pg in m.find_children("Pigeon_*", "Node3D", true, false):
+		_pigeons.append({"node": pg, "yaw": (pg as Node3D).rotation.y, "phase": randf() * TAU, "rate": randf_range(2.5, 4.5)})
+
+
+func _water() -> ShaderMaterial:
+	if _water_mat:
+		return _water_mat
+	_water_mat = ShaderMaterial.new()
+	_water_mat.shader = load("res://scripts/water.gdshader")
+	for k in [["ripples_a", 0.035, 7], ["ripples_b", 0.06, 13]]:
+		var tex := NoiseTexture2D.new()
+		tex.width = 256
+		tex.height = 256
+		tex.seamless = true
+		tex.as_normal_map = true
+		tex.bump_strength = 6.0
+		var nz := FastNoiseLite.new()
+		nz.frequency = k[1]
+		nz.seed = k[2]
+		tex.noise = nz
+		_water_mat.set_shader_parameter(k[0], tex)
+	var scum := NoiseTexture2D.new()
+	scum.width = 128
+	scum.height = 128
+	scum.seamless = true
+	var sn := FastNoiseLite.new()
+	sn.frequency = 0.08
+	scum.noise = sn
+	_water_mat.set_shader_parameter("scum", scum)
+	return _water_mat
 
 
 func _sit_at(m: Node3D) -> void:
@@ -293,6 +351,20 @@ func reset_ijsje() -> void:
 
 
 func _process(dt: float) -> void:
+	_t += dt
+	for d in _ducks:
+		var n: Node3D = d.node
+		if not is_instance_valid(n):
+			continue
+		var a: float = d.phase + _t * 0.12
+		n.position = d.home + Vector3(cos(a) * d.r, sin(_t * 2.1 + d.phase) * 0.025, sin(a) * d.r)
+		n.rotation.y = -a - PI   # facing along the circle
+	for pg in _pigeons:
+		var pn: Node3D = pg.node
+		if not is_instance_valid(pn):
+			continue
+		var peck := pow(maxf(0.0, sin(_t * pg.rate + pg.phase)), 12.0)
+		pn.rotation = Vector3(0, pg.yaw + sin(_t * 0.3 + pg.phase) * 0.6, -peck * 0.7)
 	if ijsje_fall.is_empty():
 		return
 	var f = ijsje_fall

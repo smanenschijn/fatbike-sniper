@@ -365,7 +365,7 @@ def variant(m, suffix, **overrides):
 # ---------------------------------------------------------------- fabric textures (numpy, tileable)
 
 FABRIC_SIZE = 512
-FABRIC_TILE = {'tricot': 0.08, 'twill': 0.1}   # metres per texture tile (box_uv)
+FABRIC_TILE = {'tricot': 0.08, 'twill': 0.1, 'foliage': 2.0}   # metres per texture tile (box_uv)
 
 
 def _tricot(rng, size):
@@ -392,7 +392,27 @@ def _twill(rng, size):
     return np.repeat(v[..., None], 3, axis=2), hgt
 
 
-FABRICS = {'tricot': _tricot, 'twill': _twill}
+def _foliage(rng, size):
+    """Leafy clumps for tree canopies: overlapping leaf shapes, light tops, dark gaps."""
+    px = np.arange(size) / size
+    X, Y = np.meshgrid(px, px)
+    hgt = np.zeros((size, size))
+    for _ in range(900):   # scattered leaf ellipses (tileable by wrapping the distance)
+        cx, cy, r = rng.random(), rng.random(), rng.uniform(0.012, 0.03)
+        ang = rng.uniform(0, np.pi)
+        dx = (X - cx + 0.5) % 1 - 0.5
+        dy = (Y - cy + 0.5) % 1 - 0.5
+        u = (dx * np.cos(ang) + dy * np.sin(ang)) / r
+        v = (-dx * np.sin(ang) + dy * np.cos(ang)) / (r * 0.55)
+        leaf = np.clip(1 - (u * u + v * v), 0, 1)
+        hgt = np.maximum(hgt, leaf * rng.uniform(0.6, 1.0))
+    mott = textures._noise(rng, size, 16)
+    v = 0.62 + 0.38 * hgt + 0.08 * (mott - 0.5)
+    rgb = np.stack([v * 0.97, v, v * 0.9], axis=2)
+    return rgb, hgt
+
+
+FABRICS = {'tricot': _tricot, 'twill': _twill, 'foliage': _foliage}
 FABRIC_PATHS = {}
 
 

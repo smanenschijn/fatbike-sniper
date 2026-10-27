@@ -414,7 +414,10 @@ def box_uv(o, tile=2.0):
     mw = o.matrix_world
     nm = mw.to_3x3()
     verts = me.vertices
+    keep = {i for i, m in enumerate(me.materials) if m and m.get('keep_uv')}   # panes with their own atlas UVs
     for poly in me.polygons:
+        if poly.material_index in keep:
+            continue
         n = nm @ poly.normal
         ax = max(range(3), key=lambda i: abs(n[i]))
         for li in poly.loop_indices:

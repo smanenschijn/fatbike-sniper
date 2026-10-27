@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import lib  # noqa: E402
 import build_square as sq  # noqa: E402  (rows of houses, windows, props)
 import build_dunant as dn  # noqa: E402  (materials, frame/put helpers)
-from lib import box, cyl, ico, join, material, sphere, tube, torus, text_mesh, extrude_profile, instance  # noqa: E402
+from lib import box, capsule, cyl, ico, join, material, sphere, tube, torus, text_mesh, extrude_profile, instance  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 V = Vector
@@ -126,6 +126,60 @@ def quay(y0, y1, x0, x1, name):
     p = [box(name + '_wall', (x1 - x0, abs(y1 - y0), 1.7), ((x0 + x1) / 2, (y0 + y1) / 2, -0.85), M['quay_brick'], smooth=False),
          box(name + '_coping', (x1 - x0, abs(y1 - y0) + 0.1, 0.12), ((x0 + x1) / 2, (y0 + y1) / 2, 0.04), M['stone'], smooth=False)]
     return p
+
+
+def duck(name, drake):
+    """A mallard (drake: green head) sitting on the water, +X forward. The game bobs and paddles them around."""
+    body = M['duck_brown']
+    p = [sphere('duck_body', 0.17, (0, 0, 0.06), body, scale=(1.35, 0.9, 0.7), seg=16, rings=8),
+         sphere('duck_tail', 0.07, (-0.21, 0, 0.12), body, scale=(1.2, 0.8, 0.6), seg=10, rings=5),
+         sphere('duck_head', 0.08, (0.19, 0, 0.24), M['duck_green'] if drake else body, seg=12, rings=6),
+         capsule('duck_neck', (0.15, 0, 0.1), (0.18, 0, 0.2), 0.05, 0.045, M['duck_green'] if drake else body, seg=10, rings=5),
+         sphere('duck_beak', 0.04, (0.27, 0, 0.22), M['duck_beak'], scale=(1.4, 0.8, 0.45), seg=10, rings=5)]
+    for s_ in (-1, 1):
+        p.append(sphere('duck_eye', 0.012, (0.24, s_ * 0.05, 0.26), M['iron'], seg=6, rings=3))
+        p.append(sphere('duck_wing', 0.1, (-0.02, s_ * 0.1, 0.11), M['duck_wing'], scale=(1.4, 0.4, 0.6), seg=10, rings=5))
+    if drake:
+        p.append(torus('duck_collar', 0.045, 0.008, (0.16, 0, 0.16), M['flower_white'], rot=(0, math.radians(60), 0), segU=12, segV=4))
+    return join(p, name)
+
+
+def gracht_life(g0, g1, bikes):
+    """Ducks (Duck_*: animated in-game), lily pads along the quays, mooring posts and a bike in the gracht."""
+    drng = random.Random(21)
+    out = []
+    M.setdefault('duck_brown', material('DuckBrown', '#8a6a4a', rough=0.7))
+    M.setdefault('duck_green', material('DuckGreen', '#1f6a3a', rough=0.3, coat=0.6))
+    M.setdefault('duck_beak', material('DuckBeak', '#f2b030', rough=0.5))
+    M.setdefault('duck_wing', material('DuckWing', '#5a4a3a', rough=0.7))
+    M.setdefault('lily', material('LilyPad', '#4f8a3a', rough=0.6))
+    tmpl = [duck('DuckTmplM', True), duck('DuckTmplF', False)]
+    for k, (x, y) in enumerate(((-24, 44.0), (-22.8, 44.6), (-21.9, 43.8), (15, 48.2), (16.2, 47.6), (44, 45.5))):
+        out.append(instance(tmpl[k % 2], f'Duck_{k}', (x, y, -0.95), drng.uniform(0, 6.28)))
+    for o in tmpl:
+        o.location = (0, 0, -50)   # templates out of sight (instanced data stays)
+        o.hide_render = True
+    pad = []
+    for k in range(30):   # lily pads in clusters against the quays
+        cx = drng.choice((-45, -30, 22, 50)) + drng.uniform(-3, 3)
+        cy = (g0 + 0.5 if drng.random() < 0.5 else g1 - 0.5) + drng.uniform(-0.3, 0.3)
+        r = drng.uniform(0.18, 0.32)
+        disc = cyl('lily', r, 0.015, (cx, cy, -0.93), M['lily'], seg=14)
+        pad.append(disc)
+        if drng.random() < 0.15:
+            pad.append(ico('lily_flower', 0.06, (cx, cy, -0.9), M['flower_pink'], subdiv=1))
+    out.append(join(pad, 'LilyPads'))
+    posts = []
+    for x in (-15.0, -9.0, 3.0, 9.0, 35.0, 41.0):   # wooden mooring posts by the boats
+        for y in (g0 + 0.4, g1 - 0.4):
+            posts.append(cyl('meerpaal', 0.12, 2.0, (x, y, -0.6), M['wood'], seg=10))
+            posts.append(cyl('meerpaal_cap', 0.13, 0.05, (x, y, 0.42), M['iron'], seg=10))
+    out.append(join(posts, 'MooringPosts'))
+    # the classic: a bike in the gracht, front wheel and handlebar sticking out
+    sunk = instance(bikes[1], 'SunkenBike', (-6.5, g1 - 0.9, -1.25), 0.4)
+    sunk.rotation_euler = (math.radians(55), math.radians(-20), 0.4)
+    out.append(sunk)
+    return out
 
 
 def bridge():
@@ -365,6 +419,7 @@ def build():
         P(bikes[k % 4], (BRIDGE_X[0] - 6.5 - k * 0.75, g0 - 1.1, 0), math.pi / 2 + rng.uniform(-0.12, 0.12))
     for (x, b, rz) in ((-12.0, 0, 0.02), (6.0, 1, -0.03), (38.0, 0, 0.05), (-36.0, 1, 0.0)):
         P(boats[b], (x, g0 + 1.5 if b == 0 else g1 - 1.4, -0.9), rz)
+    props += gracht_life(g0, g1, bikes)
 
     # Woonstraat: trees in the pavement, parked bikes, bins
     for y in (60.0, 76.0, 90.0):
