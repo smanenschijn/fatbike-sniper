@@ -47,7 +47,7 @@ static func _capsules() -> Array:
 	out.append(["Boss_ElbowL", Vector3(0.15, -0.85, -0.55), Vector3(0.45, -0.85, -0.55), 0.75, "ArmL"])
 	out.append(["Boss_Spine", Vector3(0.3, 0.9, 0), Vector3(0.2, 2.9, 0), 1.35, "Torso"])
 	out.append(["Boss_Hips", Vector3(0, 0, -0.7), Vector3(0, 0, 0.7), 0.6, "Torso"])
-	out.append(["Boss_Neck", Vector3(0.4, 0.3, 0), Vector3(0.2, 1.2, 0), 0.85, "Head"])
+	out.append(["Boss_Neck", Vector3(0.4, 0.3, 0), Vector3(0.2, 1.2, 0), 1.1, "Head"])   # the neck pivot scales the head up 1.3x
 	return out
 
 var game  # Game (untyped: Game also refers to us)
@@ -92,6 +92,11 @@ var _kneel := 0.0
 var _attack := {}
 var _attack_cd := 3.0
 var _held_tyre: Node3D = null
+var _jaw := 0.0         # 0 shut .. 1 wide open (roars, shouts, rockets)
+var _jaw_kick := 0.0
+var _clench := {"L": 0.0, "R": 0.0}   # claw fingers: 0 spread .. 1 a fist
+var _pistons: Array = []   # [[sleeve pivot, rod pivot]]: hydraulics re-aimed at each other every frame
+var _smoke_t := 0.0
 var _soft: Array[RID] = []  # collision of the SOFT decorations, ignored by fits()
 # rocket boosters on the stumps of shot-off legs: side -> {node, flame, core, light, power, puff}
 var _boosters := {}
@@ -141,6 +146,21 @@ func _build_model() -> void:
 	for k in ["Boss_Hips", "Boss_LegL_Pivot", "Boss_KneeL", "Boss_LegR_Pivot", "Boss_KneeR", "Boss_Spine",
 			"Boss_ArmL_Pivot", "Boss_ElbowL", "Boss_ArmR_Pivot", "Boss_ElbowR", "Boss_Neck"]:
 		rest[k] = (n[k] as Node3D).transform
+	# the finer joints of the glow-up (jaw, wrists, claw fingers, ankles): optional, so older models still work
+	for k in n:
+		if k == "Boss_Jaw" or k.begins_with("Boss_Wrist") or k.begins_with("Boss_Finger") or k.begins_with("Boss_Ankle"):
+			rest[k] = (n[k] as Node3D).transform
+	_pistons.clear()
+	for k in n:
+		if k.begins_with("Boss_PistonA_") and n.has("Boss_PistonB_" + k.substr(13)):
+			_pistons.append([n[k], n["Boss_PistonB_" + k.substr(13)]])
+	# baked ambient occlusion lives in the vertex colours
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh = (mi as MeshInstance3D).mesh
+		for si in mesh.get_surface_count():
+			var mat = mesh.surface_get_material(si) as BaseMaterial3D
+			if mat:
+				mat.vertex_color_use_as_albedo = true
 	for c in _capsules():
 		caps.append({"node": n[c[0]], "a": c[1], "b": c[2], "r": c[3], "part": c[4]})
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
@@ -202,7 +222,7 @@ func _meshes_for(part: String) -> Array:
 		var node = n[k]
 		if not node is MeshInstance3D:
 			continue
-		if part == "Head" and (k == "Boss_Head" or k == "Boss_Hair"):
+		if part == "Head" and (k.begins_with("Boss_Head") or k == "Boss_Hair"):
 			out.append(node)
 		elif k.begins_with("Boss_Bike_" + part):
 			out.append(node)
@@ -213,7 +233,7 @@ func _skeleton_meshes() -> Array:
 	var out = []
 	for k in n:
 		var node = n[k]
-		if node is MeshInstance3D and not k.begins_with("Boss_Bike_") and k != "Boss_Head" and k != "Boss_Hair":
+		if node is MeshInstance3D and not k.begins_with("Boss_Bike_") and not k.begins_with("Boss_Head") and k != "Boss_Hair":
 			out.append(node)
 	return out
 
@@ -528,6 +548,7 @@ func _step_fight(dt: float) -> void:
 	if _shout_t <= 0:
 		_shout_t = randf_range(6, 10)
 		effects.bubble(n.Boss_Neck, Vector3(0, 3.2, 0), (RAGE if rage else SHOUTS).pick_random(), false, 2.2)
+		_jaw_kick = 1.6
 	# movement: lumber to a new spot now and then, not while attacking
 	_move_t -= dt
 	if _move_t <= 0 and _attack.is_empty():
@@ -710,6 +731,7 @@ func _muzzle(i: int) -> Vector3:
 
 
 func _fire_rocket(i: int) -> void:
+	_jaw_kick = maxf(_jaw_kick, 0.8)
 	var from = _muzzle(i * 2 + randi() % 2)
 	var shoulder: Vector3 = (n.Boss_ArmR_Pivot as Node3D).global_position
 	var accurate = randf() < settings.accuracy + 0.15
@@ -959,6 +981,7 @@ func damage(part: String, amount: float, point: Vector3) -> Dictionary:
 	if _pain_t <= 0 and randf() < 0.35:
 		_pain_t = 3.0
 		effects.bubble(n.Boss_Neck, Vector3(0, 3.2, 0), PAIN.pick_random(), false, 1.4)
+		_jaw_kick = 1.0
 	if p.hp > 0:
 		return {"result": "hit", "part": part}
 	p.alive = false
@@ -1251,6 +1274,10 @@ func _pose(dt: float) -> void:
 		leg.basis = (rest["Boss_Leg%s_Pivot" % side] as Transform3D).basis * Basis(Vector3(0, 0, 1), lift * 0.55 + kneel_bend * 0.8)
 		var knee: Node3D = n["Boss_Knee" + side]
 		knee.basis = (rest["Boss_Knee" + side] as Transform3D).basis * Basis(Vector3(0, 0, 1), -lift * 1.0 - kneel_bend * 1.4)
+		if n.has("Boss_Ankle" + side):   # keep the foot flat: undo most of hip + knee, toes dip when lifted
+			var ank: Node3D = n["Boss_Ankle" + side]
+			var leg_angle: float = (lift * 0.55 + kneel_bend * 0.8) + (-lift * 1.0 - kneel_bend * 1.4)
+			ank.basis = (rest["Boss_Ankle" + side] as Transform3D).basis * Basis(Vector3(0, 0, 1), -leg_angle * 0.9 - lift * 0.35)
 	# spine: breathing, flinch back when hit, twist into the rocket aim
 	var spine: Node3D = n.Boss_Spine
 	spine.basis = (rest.Boss_Spine as Transform3D).basis * Basis(Vector3.UP, _aim * 0.25 + stag) \
@@ -1277,3 +1304,61 @@ func _pose(dt: float) -> void:
 		var q = Quaternion(cur, want)
 		var aimed: Basis = parent_g.inverse() * (Basis(q) * (parent_g * idle))
 		arm_r.basis = Basis(idle.get_rotation_quaternion().slerp(aimed.get_rotation_quaternion(), _aim))
+	_pose_details(dt)
+
+
+## The glow-up's finer articulation: jaw, wrists, claw fingers, hydraulics, exhaust smoke.
+func _pose_details(dt: float) -> void:
+	var t := _t
+	if n.has("Boss_Jaw"):
+		_jaw_kick = maxf(0.0, _jaw_kick - dt)
+		var want: float = clampf(minf(_jaw_kick, 1.0) * 0.9 + (0.25 if rage else 0.05) + _flinch * 0.5 + _aim * 0.25, 0.0, 1.0)
+		if rage or state == "dying":
+			want += 0.12 * sin(t * 22.0)   # chattering with rage
+		_jaw = lerpf(_jaw, want, minf(1.0, dt * 10.0))
+		(n.Boss_Jaw as Node3D).basis = (rest.Boss_Jaw as Transform3D).basis * Basis(Vector3(0, 0, 1), -_jaw * 0.55)
+	for side in ["L", "R"]:
+		if not n.has("Boss_Wrist" + side):
+			continue
+		var target: float = 0.25 + 0.15 * sin(t * 1.1 + (0.0 if side == "L" else 2.0))
+		if side == "L" and _held_tyre:
+			target = 1.0
+		elif side == "R":
+			target = lerpf(target, 0.0, _aim)   # spread wide while aiming the launcher
+		if _flinch > 0.3:
+			target = 0.0
+		_clench[side] = lerpf(_clench[side], target, minf(1.0, dt * 6.0))
+		var wrist: Node3D = n["Boss_Wrist" + side]
+		wrist.basis = (rest["Boss_Wrist" + side] as Transform3D).basis * Basis(Vector3(0, 0, 1), 0.12 * sin(t * 1.3) - _flinch * 0.35)
+		for i in 4:
+			var f = n.get("Boss_Finger%s%d" % [side, i])
+			if f == null:
+				continue
+			var twitch := 0.08 * sin(t * 3.0 + i * 1.7)
+			(f as Node3D).basis = (rest["Boss_Finger%s%d" % [side, i]] as Transform3D).basis \
+				* Basis(Vector3(0, 0, 1), -(_clench[side] * 0.9 + twitch))
+	for pr in _pistons:   # each half points at the other: the rod slides in and out of its sleeve
+		var a: Node3D = pr[0]
+		var b: Node3D = pr[1]
+		if not is_instance_valid(a) or not is_instance_valid(b) or not a.is_inside_tree() or not b.is_inside_tree():
+			continue
+		for pair in [[a, b], [b, a]]:
+			var me: Node3D = pair[0]
+			var other: Node3D = pair[1]
+			var d: Vector3 = (me.get_parent() as Node3D).global_basis.inverse() * (other.global_position - me.global_position)
+			if d.length() < 0.001:
+				continue
+			var up := me.basis.y.normalized()
+			if absf(up.dot(d.normalized())) > 0.98:
+				up = me.basis.x.normalized()
+			var sc := me.basis.get_scale()
+			me.basis = Basis.looking_at(d.normalized(), up).scaled(sc)
+	if state == "fight" or state == "dying":
+		_smoke_t -= dt
+		if _smoke_t <= 0.0:
+			_smoke_t = 0.12 if rage or state == "dying" else 0.35
+			for i in 2:
+				var e = n.get("Boss_Exhaust_%d" % i)
+				if e and (e as Node3D).is_inside_tree():
+					effects.puff((e as Node3D).global_position + Vector3(0, 0.3, 0), Color("2a2a2e") if rage else Color("5a5a60"), 1, 1.1)
+

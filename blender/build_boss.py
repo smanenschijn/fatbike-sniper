@@ -1,5 +1,9 @@
 """FATBIKETRON: the end boss, a hunched combiner robot built from five taken-apart fatbikes.
 
+Glow-up (2026-10-27): finer articulation (hinged jaw, wrists, claw fingers, ankles, hydraulics across every big
+joint), a bigger head with extra eyes and a spoke crest, dorsal spikes, glowing vents, smoking exhaust stacks and
+baked AO in the vertex colours (crowdkit).
+
 Every limb is made from the parts of one fatbike in one team colour: fenders become armour blades and
 spikes, batteries armour plates, handlebars horns, crank arms claws, wheels feet, hip discs and a
 shield. Behind the armour sits a gunmetal skeleton with bronze gears and chains. Shooting a limb
@@ -11,13 +15,20 @@ Exports `assets/models/boss.glb` (faces +X, feet on the ground):
   - `Boss_Hips`                         pelvis pivot
     - `Boss_Pelvis`
     - `Boss_Leg{L,R}_Pivot`             hip    -> `Boss_Leg?_Frame_Upper`, `Boss_Bike_Leg?_Upper`
-      - `Boss_Knee{L,R}`                knee   -> `Boss_Leg?_Frame_Lower`, `Boss_Bike_Leg?_Lower` (shin + wheel foot)
+      - `Boss_Knee{L,R}`                knee   -> `Boss_Leg?_Frame_Lower`, `Boss_Bike_Leg?_Lower` (shin)
+        - `Boss_Ankle{L,R}`             ankle  -> `Boss_Leg?_Frame_Foot` (claw toes), `Boss_Bike_Leg?_Foot` (wheels)
     - `Boss_Spine`                      waist pivot (rest pose leans forward)
       - `Boss_Chest`, `Boss_Core` (glowing chest light), `Boss_Bike_Torso`
       - `Boss_Arm{L,R}_Pivot`           shoulder -> `Boss_Arm?_Frame_Upper`, `Boss_Bike_Arm?_Upper`
         - `Boss_Elbow{L,R}`             elbow  -> `Boss_Arm?_Frame_Lower`, `Boss_Bike_Arm?_Lower` (+ `Boss_Launcher`,
                                                   `Boss_Muzzle_0..5` on the right)
-      - `Boss_Neck`                     -> `Boss_Head`, `Boss_Hair`
+          - `Boss_Wrist{L,R}`           wrist  -> `Boss_Bike_Arm?_Hand`
+            - `Boss_Finger{L,R}{0..3}`  claw fingers (3 + thumb) -> `Boss_Bike_Arm?_Finger?`
+      - `Boss_Neck`                     -> `Boss_Head`, `Boss_Hair` (scaled up)
+        - `Boss_Jaw`                    -> `Boss_HeadJaw`
+      - `Boss_Exhaust_{0,1}`            tips of the exhaust stacks (smoke)
+  - `Boss_Piston{A,B}_<joint>`          hydraulic rams across hips, knees, ankles, shoulders, elbows, neck and jaw:
+                                        sleeve and rod on the two sides of the joint, re-aimed at each other in-game
 - `Boss_Rocket`                         projectile template (points +X)
 
 Every node whose name starts with `Boss_Bike_<Limb>` belongs to that limb's bike.
@@ -35,6 +46,7 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(__file__))
 import lib  # noqa: E402
 import build_fatbiker as fb  # noqa: E402
+import crowdkit as ck  # noqa: E402
 from lib import box, capsule, cyl, join, material, sphere, torus, tube  # noqa: E402
 
 ROOT = fb.ROOT
@@ -58,18 +70,20 @@ TEAM = {
 def mats():
     M = fb.mats()
     M.update({
-        'metal': material('BossMetal', '#4a505a', rough=0.42, metal=0.8),
-        'dark': material('BossDark', '#1f2227', rough=0.5, metal=0.6),
+        'metal': material('BossMetal', '#3e434c', rough=0.4, metal=0.85),
+        'dark': material('BossDark', '#18191d', rough=0.5, metal=0.6),
         'bronze': material('BossBronze', '#7a5234', rough=0.38, metal=0.9),
         'joint': material('BossJoint', '#a3abb5', rough=0.22, metal=1.0),
         'tape': material('DuctTape', '#b7bac0', rough=0.65, metal=0.2),
-        'eye': material('BossEye', '#ff1a10', rough=0.2, emission='#ff2a1a', strength=14),
+        'eye': material('BossEye', '#ff1a10', rough=0.2, emission='#ff2a1a', strength=24),
         'core': material('BossCore', '#ffe9b0', rough=0.1, emission='#ffcf6a', strength=8),
         'mouth': material('BossMouth', '#120808', rough=0.6),
         'fang': material('BossFang', '#e9e4d6', rough=0.3, metal=0.3),
         'rocket': material('RocketRed', '#e63946', rough=0.35, coat=0.5),
         'rocket_w': material('RocketWhite', '#f4f4f4', rough=0.35),
         'flame': material('RocketFlame', '#ffb03a', rough=0.5, emission='#ff8a1f', strength=10),
+        'glow': material('BossGlow', '#ff5a1a', rough=0.3, emission='#ff4a10', strength=7),
+        'cable': material('BossCable', '#15171a', rough=0.7),
     })
     return M
 
@@ -208,13 +222,15 @@ def horn(m, a, b, c):
 
 
 def claw(M, m, wrist, fwd, side, down):
-    """A hand: pedal palm + three crank-arm fingers and a thumb, with brake-lever talons."""
+    """A hand: pedal palm + three crank-arm fingers and a thumb, with brake-lever talons.
+    Returns (palm parts, [(finger base, finger parts), ...])."""
     fwd, side, down = V(fwd).normalized(), V(side).normalized(), V(down).normalized()
     fwd = (fwd - down * fwd.dot(down)).normalized()
     palm = put(box('palm', (0.55, 0.5, 0.35), mat=M['dark'], bevel=0.06), wrist + down * 0.15, lib.basis(fwd, -down))
     pedal = put(box('pedal', (0.5, 0.52, 0.08), mat=m['rubber'], bevel=0.02), wrist + down * 0.1 + fwd * 0.3,
                 lib.basis(fwd, -down))
-    parts = [palm, pedal]
+    parts = [palm, pedal, sphere('wrist_ball', 0.2, wrist, M['joint'], seg=14, rings=8)]
+    fingers = []
     for off in (-0.2, 0.0, 0.2, None):
         if off is None:   # thumb, on the inner side
             base = wrist + down * 0.2 - side * 0.3 + fwd * 0.1
@@ -228,11 +244,12 @@ def claw(M, m, wrist, fwd, side, down):
             l1, l2 = 0.5, 0.42
         k = base + d1 * l1
         tipp = k + d2 * l2
-        talon = cyl('talon', 0.07, 0.38, mat=M['chrome'], r2=0.0, seg=6)
-        lib.orient(talon, tipp, tipp + (d2 + fwd * 0.3).normalized() * 0.38)
-        parts += [tube('crank_arm', base, k, 0.07, m['rim'], seg=8), sphere('knuckle', 0.09, k, M['joint'], seg=10, rings=6),
-                  tube('crank_arm', k, tipp, 0.06, m['rim'], seg=8), talon]
-    return parts
+        talon = cyl('talon', 0.075, 0.46, mat=M['chrome'], r2=0.0, seg=6)
+        lib.orient(talon, tipp, tipp + (d2 + fwd * 0.3).normalized() * 0.46)
+        fingers.append((base, [sphere('knuckle', 0.1, base, M['joint'], seg=10, rings=6),
+                               tube('crank_arm', base, k, 0.075, m['rim'], seg=8), sphere('knuckle', 0.09, k, M['joint'], seg=10, rings=6),
+                               tube('crank_arm', k, tipp, 0.065, m['rim'], seg=8), talon]))
+    return parts, fingers
 
 
 # ================================================================ skeleton helpers
@@ -280,7 +297,13 @@ def build_leg(M, s):
     up = bone(M, hip, knee, 0.22) + ball(M, hip, 0.42) + piston(M, hip + V((-0.35, 0, -0.2)), knee + V((-0.3, 0, 0.2)))
     lo = bone(M, knee, foot + V((-0.2, 0, 0.25)), 0.2) + ball(M, knee, 0.36)
     lo += piston(M, knee + V((-0.35, 0, -0.1)), foot + V((-0.55, 0, 0.5)))
-    lo.append(box('ankle', (0.55, 0.55, 0.5), foot + V((-0.25, 0, 0.35)), M['dark'], bevel=0.08))
+    ankle = foot + V((-0.25, 0, 0.35))
+    ft = [box('ankle', (0.55, 0.55, 0.5), ankle, M['dark'], bevel=0.08), sphere('ankle_ball', 0.3, ankle, M['joint'], seg=16, rings=8)]
+    for k in (-1, 1):   # a pair of claw toes in front of the wheels
+        t0 = foot + V((0.55, k * 0.35, -0.1))
+        tc = cyl('toe', 0.12, 0.55, mat=M['chrome'], r2=0.0, seg=6)
+        lib.orient(tc, t0, t0 + V((0.9, k * 0.15, -0.35)).normalized() * 0.55)
+        ft.append(tc)
     lo.append(gear(M, knee + out * 0.32, out, 0.42))
 
     fwd = V((1, 0, 0))
@@ -297,15 +320,17 @@ def build_leg(M, s):
     shin_a, shin_b = knee + V((0.3, 0, -0.35)), foot + V((0.55, 0, 0.75))
     bl = [blade(m, knee + V((0.05, 0, 0.05)), out, (0.0, 0, 1), 130, 0.62, 1.2, thick=0.1, spike=0.6),
           battery(m, shin_a, shin_b, width=1.15, depth=0.36, outward=(1, 0, 0.3)),
-          blade(m, foot, out, (-0.85, 0, 0.5), 150, WHEEL_R + 0.18, 1.6, thick=0.08, spike=0.8, spike_start=0.45)]
+          ]
+    bf = [blade(m, foot, out, (-0.85, 0, 0.5), 150, WHEEL_R + 0.18, 1.6, thick=0.08, spike=0.8, spike_start=0.45)]
     for k in (-1, 1):
         bl.append(frame_tube(m, knee + V((0.0, k * 0.3, -0.1)), foot + V((-0.1, k * 0.55, 0.1)), 0.1))
-        bl.append(wheel(m, limb, foot + V((0, k * 0.42, 0)), out))
-    bl.append(disc(M, foot + out * 0.78, out, 0.36))
+        bf.append(wheel(m, limb, foot + V((0, k * 0.42, 0)), out))
+    bf.append(disc(M, foot + out * 0.78, out, 0.36))
     bl += chain(M, [knee + out * 0.36, foot + out * 0.78])
 
-    return hip, knee, (join(up, f'Boss_{limb}_Frame_Upper', pivot=hip), join(bu, f'Boss_Bike_{limb}_Upper', pivot=hip)), \
-        (join(lo, f'Boss_{limb}_Frame_Lower', pivot=knee), join(bl, f'Boss_Bike_{limb}_Lower', pivot=knee))
+    return hip, knee, ankle, (join(up, f'Boss_{limb}_Frame_Upper', pivot=hip), join(bu, f'Boss_Bike_{limb}_Upper', pivot=hip)), \
+        (join(lo, f'Boss_{limb}_Frame_Lower', pivot=knee), join(bl, f'Boss_Bike_{limb}_Lower', pivot=knee)), \
+        (join(ft, f'Boss_{limb}_Frame_Foot', pivot=ankle), join(bf, f'Boss_Bike_{limb}_Foot', pivot=ankle))
 
 
 def build_pelvis(M):
@@ -319,6 +344,7 @@ def build_pelvis(M):
         p.append(cyl('waist_spacer', 0.32, 0.16, (-0.25, 0, z + 0.1), M['dark'], seg=16))
     for k in (-1, 1):
         p += piston(M, (-0.25, k * 0.55, HIP_Z + 0.3), (-0.2, k * 0.6, HIP_Z + 1.6), 0.06)
+        p.append(box('vent', (0.6, 0.04, 0.05), (-0.3, k * 0.71, HIP_Z + 0.15), M['glow']))
     return join(p, 'Boss_Pelvis', pivot=(-0.25, 0, HIP_Z))
 
 
@@ -336,6 +362,23 @@ def build_torso(M):
         sk += piston(M, c + V((0.6, s * 0.95, -1.1)), c + V((0.6, s * 1.05, 0.7)), 0.06)
         sk += ball(M, arm_points(s)[0], 0.48)
     sk.append(box('neck_block', (0.7, 0.8, 0.5), NECK + V((-0.15, 0, -0.1)), M['dark'], bevel=0.08))
+    for s in (-1, 1):
+        for k in range(4):   # glowing vents along the flanks and the back
+            sk.append(box('vent', (0.5, 0.04, 0.05), c + V((0.1, s * 1.11, -0.5 + k * 0.18)), M['glow']))
+            sk.append(box('vent', (0.04, 0.5, 0.05), c + V((-0.81, s * 0.5, -0.6 + k * 0.18)), M['glow']))
+        # exhaust stacks: two chrome pipes from the back past the shoulders
+        e0, e1, e2 = c + V((-0.85, s * 0.55, -0.6)), c + V((-1.15, s * 0.65, 0.4)), c + V((-1.2, s * 0.7, 1.75))
+        sk += [tube('exhaust', e0, e1, 0.13, M['chrome'], seg=12), sphere('exhaust_bend', 0.13, e1, M['chrome'], seg=12, rings=6),
+               tube('exhaust', e1, e2, 0.13, M['chrome'], seg=12),
+               cyl('exhaust_tip', 0.16, 0.25, e2 + V((0, 0, 0.1)), M['dark'], r2=0.2, seg=12)]
+        sk += [tube('cable', c + V((0.4, s * 0.9, 0.9)), arm_points(s)[0] + V((0.25, -s * 0.1, -0.35)), 0.06, M['cable'], seg=8)]
+    for k, (z, l) in enumerate(((0.2, 1.3), (0.75, 1.9), (1.25, 1.6))):   # dorsal spikes: brake-disc fins on the back
+        for s in (-1, 1):
+            base = c + V((-0.75, s * 0.32, z))
+            sp = cyl('dorsal', 0.2, l, mat=M['chrome'], r2=0.0, seg=6, smooth=False)
+            lib.orient(sp, base, base + V((-0.55, s * 0.35, 1.0)).normalized() * l)
+            sk.append(sp)
+            sk.append(cyl('dorsal_base', 0.26, 0.2, base, M['dark'], rot=(0, math.radians(-30), 0), seg=8))
     sk += bone(M, NECK, NECK + V((0.2, 0, 0.35)), 0.2)
     chest = join(sk, 'Boss_Chest', pivot=SPINE)
 
@@ -358,7 +401,8 @@ def build_torso(M):
         b.append(wheel(m, 'Torso', c + V((-1.1, s * 0.62, 0.6)), (-1, s * 0.55, 0.25)))
     b.append(seat(m, c + V((-0.85, 0, -0.5)), (0, 0, 1), (-1, 0, 0)))
     b.append(gear(M, c + V((-1.25, 0, 0.6)), (-1, 0, 0), 0.34, mat=M['chrome']))
-    return chest, core, join(b, 'Boss_Bike_Torso', pivot=SPINE)
+    exhausts = [c + V((-1.2, s * 0.7, 2.0)) for s in (1, -1)]
+    return chest, core, join(b, 'Boss_Bike_Torso', pivot=SPINE), exhausts
 
 
 def build_arm(M, s):
@@ -390,7 +434,9 @@ def build_arm(M, s):
     bl = [frame_tube(m, elbow + V((0.15, k * 0.18, 0)), wrist + V((0, k * 0.2, 0.1)), 0.085) for k in (-1, 1)]
     bl.append(blade(m, elbow + V((-0.1, s * 0.1, 0.1)), out, (-0.3, 0, 1), 60, 0.55, 0.45, thick=0.07, spike=0.6))
     fdir = (wrist - elbow).normalized()
-    bl += claw(M, m, wrist + fdir * 0.15, (1, 0, 0), out, fdir)
+    palm, fingers = claw(M, m, wrist + fdir * 0.15, (1, 0, 0), out, fdir)
+    hand = join(palm, f'Boss_Bike_{limb}_Hand', pivot=wrist)
+    fingers = [(base, join(fp, f'Boss_Bike_{limb}_Finger{i}', pivot=base)) for i, (base, fp) in enumerate(fingers)]
     launcher = muzzles = None
     if s > 0:   # left forearm: a wheel strapped on as a buzzsaw shield
         mid = lerp(elbow, wrist, 0.5)
@@ -400,8 +446,9 @@ def build_arm(M, s):
         bl.append(wheel(m, limb, elbow + out * 0.6, out))
         launcher, muzzles = build_launcher(M, m, elbow, wrist, s)
 
-    return sho, elbow, (join(up, f'Boss_{limb}_Frame_Upper', pivot=sho), join(bu, f'Boss_Bike_{limb}_Upper', pivot=sho)), \
-        (join(lo, f'Boss_{limb}_Frame_Lower', pivot=elbow), join(bl, f'Boss_Bike_{limb}_Lower', pivot=elbow)), launcher, muzzles
+    return sho, elbow, wrist, (join(up, f'Boss_{limb}_Frame_Upper', pivot=sho), join(bu, f'Boss_Bike_{limb}_Upper', pivot=sho)), \
+        (join(lo, f'Boss_{limb}_Frame_Lower', pivot=elbow), join(bl, f'Boss_Bike_{limb}_Lower', pivot=elbow)), launcher, muzzles, \
+        hand, fingers
 
 
 def build_launcher(M, m, elbow, wrist, s):
@@ -435,34 +482,59 @@ def build_launcher(M, m, elbow, wrist, s):
 
 # ================================================================ head & hair
 
+JAW_HINGE = HEAD_C + V((-0.12, 0, -0.2))
+HEAD_SCALE_UP = 1.3
+
+
 def build_head(M):
+    """Upper skull (Boss_Head) and a hinged jaw (Boss_HeadJaw). Slanted visor eyes, a second pair of small eyes
+    below, glowing cheek vents, long upper fangs, a crest of spokes."""
     c = HEAD_C
     p = [box('cranium', (0.95, 0.92, 0.7), c + V((-0.08, 0, 0.12)), M['metal'], bevel=0.14, segs=3)]
-    # angular face: a wedge side profile extruded across
-    face = lib.extrude_profile('face', [(-0.35, 0.3), (0.42, 0.22), (0.55, 0.05), (0.5, -0.25), (0.3, -0.48),
-                                        (-0.15, -0.5), (-0.4, -0.2)], 0.78, M['metal'])
+    face = lib.extrude_profile('face', [(-0.35, 0.3), (0.42, 0.22), (0.58, 0.05), (0.56, -0.18), (0.3, -0.24),
+                                        (-0.15, -0.28), (-0.4, -0.2)], 0.8, M['metal'])
     face.location = c
     p.append(face)
-    for s in (-1, 1):
-        # deep V brow, slanted glowing eyes
-        p.append(box('brow', (0.35, 0.42, 0.13), c + V((0.4, s * 0.21, 0.22)), M['dark'], bevel=0.03,
-                     rot=(s * math.radians(28), math.radians(-12), 0)))
-        p.append(box('socket', (0.08, 0.3, 0.13), c + V((0.52, s * 0.19, 0.07)), M['mouth'], bevel=0.02,
-                     rot=(s * math.radians(22), 0, 0)))
-        p.append(box('eye', (0.08, 0.24, 0.06), c + V((0.555, s * 0.19, 0.075)), M['eye'], bevel=0.015,
-                     rot=(s * math.radians(22), 0, 0)))
-        p.append(box('cheek', (0.3, 0.12, 0.35), c + V((0.32, s * 0.4, -0.18)), M['dark'], bevel=0.04,
-                     rot=(s * math.radians(-12), 0, 0)))
-        p.append(disc(M, c + V((-0.05, s * 0.47, -0.02)), (0, s, 0), 0.24))
-        # fangs, top row longer
+    for s_ in (-1, 1):
+        p.append(box('brow', (0.38, 0.44, 0.14), c + V((0.42, s_ * 0.21, 0.23)), M['dark'], bevel=0.03,
+                     rot=(s_ * math.radians(30), math.radians(-14), 0)))
+        p.append(box('socket', (0.08, 0.32, 0.13), c + V((0.55, s_ * 0.19, 0.07)), M['mouth'], bevel=0.02,
+                     rot=(s_ * math.radians(24), 0, 0)))
+        p.append(box('eye', (0.08, 0.27, 0.06), c + V((0.585, s_ * 0.19, 0.075)), M['eye'], bevel=0.015,
+                     rot=(s_ * math.radians(24), 0, 0)))
+        p.append(box('eye2', (0.06, 0.09, 0.05), c + V((0.585, s_ * 0.13, -0.06)), M['eye'], bevel=0.012,
+                     rot=(s_ * math.radians(15), 0, 0)))
+        p.append(box('cheek', (0.32, 0.12, 0.3), c + V((0.3, s_ * 0.42, -0.1)), M['dark'], bevel=0.04,
+                     rot=(s_ * math.radians(-12), 0, 0)))
+        for k in range(3):   # glowing cheek vents
+            p.append(box('vent', (0.18, 0.03, 0.03), c + V((0.3, s_ * 0.485, -0.02 - k * 0.07)), M['glow'],
+                         rot=(s_ * math.radians(-12), 0, 0)))
+        p.append(disc(M, c + V((-0.05, s_ * 0.47, -0.02)), (0, s_, 0), 0.24))
+        for k in range(3):   # upper fangs, long and hooked forward
+            y = s_ * (0.07 + k * 0.1)
+            p.append(cyl('fang', 0.05, 0.3 - k * 0.07, c + V((0.53, y, -0.32)), M['fang'], rot=(math.pi, math.radians(-12), 0),
+                         r2=0.0, seg=6))
+    p.append(box('upper_mouth', (0.16, 0.66, 0.12), c + V((0.47, 0, -0.24)), M['mouth'], bevel=0.03))
+    p.append(box('nose_ridge', (0.2, 0.12, 0.35), c + V((0.55, 0, 0.0)), M['metal'], bevel=0.04, rot=(0, math.radians(15), 0)))
+    for k in range(5):   # crest: chrome spokes raking back over the skull
+        base = c + V((0.25 - k * 0.2, 0, 0.42 - k * 0.02))
+        sp = cyl('crest', 0.06, 0.55 - k * 0.04, mat=M['chrome'], r2=0.0, seg=5, smooth=False)
+        lib.orient(sp, base, base + V((-0.75, 0, 0.6)).normalized() * (0.55 - k * 0.04))
+        p.append(sp)
+    head = join(p, 'Boss_Head', pivot=NECK)
+
+    j = [box('jaw', (0.62, 0.7, 0.2), c + V((0.25, 0, -0.42)), M['dark'], bevel=0.05),
+         box('lower_mouth', (0.14, 0.6, 0.1), c + V((0.48, 0, -0.34)), M['mouth'], bevel=0.03),
+         box('chin', (0.3, 0.42, 0.16), c + V((0.48, 0, -0.5)), M['metal'], bevel=0.05, rot=(0, math.radians(-10), 0))]
+    for s_ in (-1, 1):
+        j.append(box('jaw_arm', (0.5, 0.1, 0.16), JAW_HINGE + V((0.18, s_ * 0.38, -0.12)), M['metal'], bevel=0.03,
+                     rot=(0, math.radians(25), 0)))
+        j.append(sphere('jaw_hinge', 0.1, JAW_HINGE + V((0, s_ * 0.4, 0)), M['joint'], seg=12, rings=6))
         for k in range(3):
-            y = s * (0.06 + k * 0.1)
-            p.append(cyl('fang', 0.045, 0.2 - k * 0.04, c + V((0.5, y, -0.27)), M['fang'], rot=(math.pi, 0, 0), r2=0.0, seg=6))
-            p.append(cyl('fang', 0.04, 0.12, c + V((0.46, y + s * 0.04, -0.42)), M['fang'], r2=0.0, seg=6))
-    p.append(box('mouth', (0.14, 0.62, 0.22), c + V((0.44, 0, -0.33)), M['mouth'], bevel=0.04))
-    p.append(box('nose_ridge', (0.2, 0.12, 0.35), c + V((0.52, 0, 0.0)), M['metal'], bevel=0.04, rot=(0, math.radians(15), 0)))
-    p.append(box('chin', (0.3, 0.36, 0.14), c + V((0.4, 0, -0.52)), M['dark'], bevel=0.04))
-    return join(p, 'Boss_Head', pivot=NECK)
+            y = s_ * (0.09 + k * 0.1)
+            j.append(cyl('fang', 0.045, 0.18 - k * 0.03, c + V((0.5, y, -0.34)), M['fang'], r2=0.0, seg=6))
+    jaw = join(j, 'Boss_HeadJaw', pivot=JAW_HINGE)
+    return head, jaw
 
 
 def build_hair(M):
@@ -523,6 +595,28 @@ def pivot(name, loc, parent):
     return e
 
 
+def cross_piston(M, name, a, pa, b, pb, r=0.08):
+    """A hydraulic ram across a joint: the sleeve hangs on pivot `pa` at a, the rod on pivot `pb` at b. Both sit
+    on an empty (Boss_PistonA_<name> / Boss_PistonB_<name>) whose +Y points at the other end; the game re-aims
+    them every frame, so the rod slides in and out of the sleeve as the joint bends."""
+    a, b = V(a), V(b)
+    D = (b - a).length
+    for tag, at, to, parent, mesh in (('A', a, b, pa, 'sleeve'), ('B', b, a, pb, 'rod')):
+        e = lib.empty(f'Boss_Piston{tag}_{name}')
+        e.empty_display_size = 0.15
+        d = (to - at).normalized()
+        e.matrix_world = Matrix.Translation(at) @ rot_between((0, 1, 0), d).to_4x4()
+        lib.set_parent(e, parent)
+        if mesh == 'sleeve':
+            parts = [tube('sleeve', at, at + d * D * 0.62, r * 1.7, M['dark'], seg=12),
+                     sphere('mount', r * 2.0, at, M['joint'], seg=12, rings=6),
+                     torus('band', r * 1.75, r * 0.35, at + d * D * 0.55, M['bronze'], segU=16, segV=4)]
+        else:
+            parts = [tube('rod', at, at + d * D * 0.62, r, M['joint'], seg=10), sphere('mount', r * 1.8, at, M['joint'], seg=12, rings=6)]
+        o = join(parts, f'Boss_Piston_{name}_{tag}', pivot=at)
+        lib.set_parent(o, e)
+
+
 def build():
     lib.reset_scene()
     M = mats()
@@ -530,44 +624,74 @@ def build():
     hips = pivot('Boss_Hips', (-0.25, 0, HIP_Z), root)
     lib.set_parent(build_pelvis(M), hips)
 
+    legs = {}
     for s in (1, -1):
-        hip, knee, upper, lower = build_leg(M, s)
+        hip, knee, ankle, upper, lower, foot = build_leg(M, s)
         side = 'L' if s > 0 else 'R'
         pv = pivot(f'Boss_Leg{side}_Pivot', hip, hips)
         kn = pivot(f'Boss_Knee{side}', knee, pv)
+        an = pivot(f'Boss_Ankle{side}', ankle, kn)
         for o in upper:
             lib.set_parent(o, pv)
         for o in lower:
             lib.set_parent(o, kn)
+        for o in foot:
+            lib.set_parent(o, an)
+        legs[s] = (hip, knee, ankle, pv, kn, an)
 
     spine = pivot('Boss_Spine', SPINE, hips)
-    for o in build_torso(M):
+    chest, core, torso_bike, exhausts = build_torso(M)
+    for o in (chest, core, torso_bike):
         lib.set_parent(o, spine)
+    for i, e in enumerate(exhausts):
+        lib.set_parent(lib.empty(f'Boss_Exhaust_{i}', e), spine)
 
-    arm_pivots = {}
+    arms = {}
     for s in (1, -1):
-        sho, elbow, upper, lower, launcher, muzzles = build_arm(M, s)
+        sho, elbow, wrist, upper, lower, launcher, muzzles, hand, fingers = build_arm(M, s)
         side = 'L' if s > 0 else 'R'
         pv = pivot(f'Boss_Arm{side}_Pivot', sho, spine)
         el = pivot(f'Boss_Elbow{side}', elbow, pv)
+        wr = pivot(f'Boss_Wrist{side}', wrist, el)
         for o in upper:
             lib.set_parent(o, pv)
         for o in lower:
             lib.set_parent(o, el)
+        lib.set_parent(hand, wr)
+        for i, (base, f) in enumerate(fingers):
+            fp = pivot(f'Boss_Finger{side}{i}', base, wr)
+            lib.set_parent(f, fp)
         if launcher:
             lib.set_parent(launcher, el)
             for i, mz in enumerate(muzzles):
                 lib.set_parent(lib.empty(f'Boss_Muzzle_{i}', mz), el)
-        arm_pivots[s] = pv
+        wr.scale = (1.3, 1.3, 1.3)   # big claws
+        arms[s] = (sho, elbow, wrist, pv, el, wr)
 
     neck = pivot('Boss_Neck', NECK, spine)
-    lib.set_parent(build_head(M), neck)
+    head, jaw = build_head(M)
+    lib.set_parent(head, neck)
+    jp = pivot('Boss_Jaw', JAW_HINGE, neck)
+    lib.set_parent(jaw, jp)
     lib.set_parent(build_hair(M), neck)
+    neck.scale = (HEAD_SCALE_UP,) * 3   # a bigger, meaner head
+    # hydraulics across every big joint (re-aimed by the game every frame)
+    for s, side in ((1, 'L'), (-1, 'R')):
+        hip, knee, ankle, pv, kn, an = legs[s]
+        foot = leg_points(s)[2]
+        cross_piston(M, f'Hip{side}', hip + V((0.45, s * 0.25, 0.55)), hips, lerp(hip, knee, 0.5) + V((0.38, s * 0.1, 0.0)), pv, 0.09)
+        cross_piston(M, f'Knee{side}', lerp(hip, knee, 0.55) + V((-0.32, 0, -0.1)), pv, lerp(knee, foot, 0.4) + V((-0.35, 0, 0.0)), kn, 0.09)
+        cross_piston(M, f'Ankle{side}', lerp(knee, foot, 0.55) + V((-0.38, s * 0.2, 0.0)), kn, ankle + V((-0.3, s * 0.2, 0.1)), an, 0.06)
+        sho, elbow, wrist, apv, el, wr = arms[s]
+        cross_piston(M, f'Shoulder{side}', sho + V((0.35, -s * 0.55, -0.85)), spine, lerp(sho, elbow, 0.35) + V((0.3, 0, 0)), apv, 0.08)
+        cross_piston(M, f'Elbow{side}', lerp(sho, elbow, 0.5) + V((-0.3, 0, 0)), apv, lerp(elbow, wrist, 0.45) + V((-0.28, 0, 0)), el, 0.08)
+        cross_piston(M, f'Neck{side}', NECK + V((-0.3, s * 0.35, -0.55)), spine, HEAD_C + V((-0.45, s * 0.32, -0.05)), neck, 0.07)
+        cross_piston(M, f'Jaw{side}', HEAD_C + V((-0.25, s * 0.47, 0.1)), neck, JAW_HINGE + V((0.3, s * 0.45, -0.25)), jp, 0.045)
 
     # rest pose: hunched, arms hanging forward of the body, head pushed forward and level
     spine.rotation_euler = (0, LEAN, 0)
     neck.rotation_euler = (0, -LEAN * 0.7, 0)
-    for s, pv in arm_pivots.items():
+    for s, (sho, elbow, wrist, pv, el, wr) in arms.items():
         pv.rotation_euler = (s * math.radians(8), -LEAN * 0.6, 0)
 
     for o in list(bpy.data.objects):   # drop the wheel templates
@@ -575,6 +699,15 @@ def build():
             bpy.data.objects.remove(o)
     rocket = build_rocket(M)
     rocket.location = (0, 8, 1)
+
+    # material kit: baked AO / crease darkening in vertex colours (Godot multiplies it in)
+    bpy.context.view_layer.update()
+    meshes = [o for o in root.children_recursive if o.type == 'MESH']
+    for m in bpy.data.materials:
+        if m.node_tree and any(nd.type == 'BSDF_PRINCIPLED' for nd in m.node_tree.nodes):
+            ck.use_ao(m)
+    ck.bake_ao(meshes, meshes, rays=20, dist=0.8, strength=0.6, cavity=1.0, floor=0.4)
+    ck.solid_vc([rocket])
     return root, rocket
 
 
