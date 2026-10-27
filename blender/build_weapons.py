@@ -401,8 +401,10 @@ def katapult():
             o.location = pivot + (V(o.location) - pivot) * K
             o.scale = V(o.scale) * K
     pouch_c = pivot + (pouch_c - pivot) * K
-    hands = (grip_hand((0, 0, -0.045), (0, 0, -1), (0, 1, 0), 0.02, (1, 0, 0), (-0.27, 0.13, -0.33), watch=True)
-             + grip_hand(pouch_c + V((-0.03, 0, 0.0)), (0, 0, -1), (0, -1, 0), 0.012, (1, 0, 0), (-0.42, -0.22, -0.2)))
+    draw = grip_hand(pouch_c + V((-0.03, 0, 0.0)), (0, 0, -1), (0, -1, 0), 0.012, (1, 0, 0), (-0.42, -0.22, -0.2))
+    for o in draw:   # the hand on the pouch is its own part: it follows the pouch when drawing (weapons.gd)
+        o['draw_arm'] = True
+    hands = grip_hand((0, 0, -0.045), (0, 0, -1), (0, 1, 0), 0.02, (1, 0, 0), (-0.27, 0.13, -0.33), watch=True) + draw
     return parts, hands
 
 
@@ -860,7 +862,11 @@ def build_viewmodel(key):
     for o in hands:   # smooth the hands; the sleeves are dense enough already
         if not o.name.startswith(('cuff', 'sleeve')):
             lib.bake(subsurf(o, 1))
-    arms = join(hands, f'{key.capitalize()}_Arms')
+    draw = [o for o in hands if o.get('draw_arm')]
+    rest = [o for o in hands if not o.get('draw_arm')]
+    if draw:
+        lib.set_parent(join(draw, f'{key.capitalize()}_DrawArm'), root)
+    arms = join(rest, f'{key.capitalize()}_Arms')
     lib.set_parent(arms, root)
     root.location = loc
     root.rotation_euler = rot
@@ -993,6 +999,8 @@ def main():
             continue
         roots[k].location, roots[k].rotation_euler = loc, rot
         bpy.data.objects[f'{k.capitalize()}_Arms'].hide_render = True
+        if f'{k.capitalize()}_DrawArm' in bpy.data.objects:
+            bpy.data.objects[f'{k.capitalize()}_DrawArm'].hide_render = True
     ice.location = (1.15, 0, 0.75)
     ice.scale = (2.2, 2.2, 2.2)
     cam = lib.camera('Cam_sheet', (0.6, -3.2, 0.95), (0.6, 0, 0.9), 50)
@@ -1004,6 +1012,8 @@ def main():
     for k, r in roots.items():
         r.location, r.rotation_euler = saved[k]
         bpy.data.objects[f'{k.capitalize()}_Arms'].hide_render = False
+        if f'{k.capitalize()}_DrawArm' in bpy.data.objects:
+            bpy.data.objects[f'{k.capitalize()}_DrawArm'].hide_render = False
     ice.scale = (1, 1, 1)
 
     # --- first-person views inside the real square

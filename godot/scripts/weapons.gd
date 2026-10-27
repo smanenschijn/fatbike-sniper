@@ -67,7 +67,7 @@ func setup(cam: Camera3D) -> void:
 		w.parts = {}
 		w.base = {}
 		for pair in [["pump", "Shotgun_Pump"], ["shell", "Shotgun_Shell"], ["bolt", "Sniper_Bolt"], ["rocket", "Bazooka_Rocket"],
-				["pouch", "Katapult_Pouch"], ["stone", "Katapult_Stone"], ["bands", "Katapult_Bands"],
+				["pouch", "Katapult_Pouch"], ["stone", "Katapult_Stone"], ["bands", "Katapult_Bands"], ["draw", "Katapult_DrawArm"],
 				["barrels", "IJs_Barrels"], ["scoops", "IJs_Scoops"]]:
 			var n = model.find_child(pair[1], true, false) as Node3D
 			if n:
@@ -75,6 +75,13 @@ func setup(cam: Camera3D) -> void:
 				w.base[pair[0]] = n.position
 		if w.parts.has("shell"):
 			w.parts.shell.visible = false
+		if w.parts.has("bands"):   # where the tubing is tied to the fork (+X end): it stretches from there
+			var bm = w.parts.bands.find_children("*", "MeshInstance3D", true, true)
+			var bands_mi: MeshInstance3D = w.parts.bands if w.parts.bands is MeshInstance3D else (bm[0] if not bm.is_empty() else null)
+			if bands_mi:
+				var bb: AABB = bands_mi.get_aabb()
+				w.base.bands_tip = bb.end.x
+				w.base.bands_len = bb.size.x
 		list.append(w)
 	current().holder.visible = true
 
@@ -269,7 +276,28 @@ func step(dt: float, inp) -> void:
 		p.pouch.position = w.base.pouch + fork * snap
 		p.stone.position = w.base.stone + fork * snap
 		p.stone.visible = a < 0.4
-		p.bands.visible = snap < 0.5
+		# the tubing follows the pouch: shorter (slack) as the pouch flies to the fork, stretched again as it's drawn
+		var bl: float = w.base.get("bands_len", 0.0)
+		if bl > 0.0:
+			var k := clampf((bl - fork.x * snap) / bl, 0.04, 1.0)
+			p.bands.scale = Vector3(k, 1, 1)
+			p.bands.position = w.base.bands + Vector3(w.base.bands_tip * (1.0 - k), 0, 0)
+			p.bands.visible = snap < 0.97
+		else:
+			p.bands.visible = snap < 0.5
+		if p.has("draw"):
+			# the drawing hand: lets go (a little flick back), reaches forward for the pouch at the fork,
+			# then pulls it back with the new stone
+			var reach := 0.0
+			if a > 0.85:
+				reach = 0.0
+			elif a > 0.75:
+				reach = 1.0 - (a - 0.75) / 0.1
+			else:
+				reach = snap
+			reach = reach * reach * (3.0 - 2.0 * reach)
+			var flick := sin(clampf((1.0 - a) / 0.15, 0.0, 1.0) * PI) if a > 0.85 else 0.0
+			p.draw.position = w.base.draw + fork * reach + Vector3(-0.03, -0.015, 0) * flick + Vector3(0, 0.02, 0) * sin(reach * PI)
 
 
 func hud_state() -> Dictionary:
