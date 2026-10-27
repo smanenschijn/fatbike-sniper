@@ -8,9 +8,6 @@ signal back_pressed
 signal menu_pressed
 signal resume_pressed
 signal option_changed(key: String, value)
-signal touch_fire(down: bool)
-signal touch_key(code: int)
-signal touch_zoom_toggle
 signal music_toggle
 signal save_name(name: String)
 
@@ -68,6 +65,7 @@ var _name_edit: LineEdit
 var _hs_end: VBoxContainer
 var touch := false
 var _play_widgets: Array = []   # hidden during cut-scenes
+var _touch_ctrls := {}          # in-game touch buttons by kind; main.gd hit-tests them per finger
 var _boss_box: VBoxContainer
 var _boss_bar: BossBar
 var _name_card: VBoxContainer
@@ -340,8 +338,7 @@ func _build_game_ui() -> void:
 	game_ui.add_child(_meter_box)
 	_play_widgets.append(_meter_box)
 	if touch:
-		_meter_box.mouse_filter = Control.MOUSE_FILTER_STOP
-		_meter_box.gui_input.connect(func(e): if e is InputEventScreenTouch and e.pressed: touch_key.emit(KEY_B))
+		_touch_ctrls.bt = _meter_box
 		_build_touch_buttons()
 
 
@@ -349,28 +346,55 @@ func _build_touch_buttons() -> void:
 	var fire = _round_button("VUUR", 40, 180)
 	fire.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	fire.position = Vector2(-230, -470)
-	fire.button_down.connect(func(): touch_fire.emit(true))
-	fire.button_up.connect(func(): touch_fire.emit(false))
 	game_ui.add_child(fire)
 	_play_widgets.append(fire)
 	var reload = _round_button("R", 30, 84, true)
 	reload.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	reload.position = Vector2(-340, -575)
-	reload.button_down.connect(func(): touch_key.emit(KEY_R))
 	game_ui.add_child(reload)
 	_play_widgets.append(reload)
 	_zoom_btn = _round_button("ZOOM", 24, 110, true)
 	_zoom_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_zoom_btn.position = Vector2(-400, -350)
-	_zoom_btn.button_down.connect(func(): touch_zoom_toggle.emit())
 	game_ui.add_child(_zoom_btn)
 	_play_widgets.append(_zoom_btn)
 	var pause = _button("II", 22, true)
 	pause.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	pause.position = Vector2(110, 14)
-	pause.button_down.connect(func(): touch_key.emit(KEY_ESCAPE))
 	game_ui.add_child(pause)
 	_play_widgets.append(pause)
+	_touch_ctrls.merge({"fire": fire, "reload": reload, "zoom": _zoom_btn, "pause": pause})
+	for c in _touch_ctrls.values():
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## The in-game touch control under a finger: {kind, idx} or {}. Hit areas are a bit larger than the
+## drawn buttons. Done by hand rather than through the GUI because the web build reports multi-touch
+## with Safari's touch ids and garbage drag deltas, which made buttons and two-finger play flaky.
+func touch_hit(pos: Vector2) -> Dictionary:
+	if _cinematic:
+		return {}
+	for kind in ["fire", "reload", "zoom", "pause", "bt"]:
+		var c: Control = _touch_ctrls.get(kind)
+		if c and c.is_visible_in_tree() and c.get_global_rect().grow(22.0 if kind != "bt" else 10.0).has_point(pos):
+			return {"kind": kind, "idx": 0}
+	var i := 0
+	for p in _weapons.get_children():
+		if p.is_queued_for_deletion():
+			continue
+		if _weapons.is_visible_in_tree() and p.get_global_rect().grow(6.0).has_point(pos):
+			return {"kind": "weapon", "idx": i}
+		i += 1
+	return {}
+
+
+## Pressed look for a touch control while a finger holds it.
+func touch_visual(kind: String, down: bool) -> void:
+	var c: Control = _touch_ctrls.get(kind)
+	if c:
+		c.modulate = Color(0.7, 0.7, 0.7) if down else Color.WHITE
+		c.scale = Vector2.ONE * (0.94 if down else 1.0)
+		c.pivot_offset = c.size / 2.0
 
 
 # ------------------------------------------------------------ end boss
@@ -528,10 +552,6 @@ func set_weapons(st: Dictionary) -> void:
 				v.add_child(lb)
 			p.add_child(v)
 			p.custom_minimum_size = Vector2(96, 0)
-			if touch:
-				p.mouse_filter = Control.MOUSE_FILTER_STOP
-				var idx = i
-				p.gui_input.connect(func(e): if e is InputEventScreenTouch and e.pressed: touch_key.emit(KEY_1 + idx))
 			_weapons.add_child(p)
 	_crosshair.mode = st.key
 	_crosshair.visible = not st.zoom and not _cinematic

@@ -46,8 +46,7 @@ var adventure := false   # the last started mode ("OPNIEUW" replays it)
 var touch := false
 var demo_t := 0.0
 var last_score := {}
-var _look_touch := -1
-var _look_start := {}
+var _fingers := {}   # touch index -> {pos, start, t, role, moved}
 var _auto := {}
 var _post: ColorRect
 var _post_mat: ShaderMaterial
@@ -116,9 +115,6 @@ func _ready() -> void:
 	hud.option_changed.connect(_on_option)
 	hud.music_toggle.connect(func(): Sfx.toggle_mute())
 	hud.save_name.connect(_save_name)
-	hud.touch_fire.connect(_on_touch_fire)
-	hud.touch_key.connect(func(code): inp.keys_pressed[code] = true)
-	hud.touch_zoom_toggle.connect(func(): inp.zoom_toggle = not inp.zoom_toggle)
 
 	Sfx.set_intensity("title")
 	Sfx.start_music()
@@ -131,6 +127,84 @@ func _on_touch_fire(down: bool) -> void:
 	if down:
 		inp.fire_pressed = true
 		inp.pending_aim = null
+
+
+# ------------------------------------------------------------ touch
+
+const TAP_MOVE := 14.0      # px a finger may wander and still count as a tap
+const TAP_MS := 350
+const FIRE_STEER := 10.0    # px the VUUR finger must slide before it also steers the view
+
+## In-game touch, per finger: a finger that lands on a HUD button presses it (VUUR keeps firing while
+## held and steers the view once it slides), any other finger drags the view or, on a quick tap,
+## fires at that spot. Deltas come from our own last position per finger: the web build's
+## ScreenDrag.relative is wrong as soon as two fingers are down.
+func _input(e: InputEvent) -> void:
+	if not touch or mode != "playing":
+		return
+	if e is InputEventScreenTouch:
+		get_viewport().set_input_as_handled()
+		if e.pressed:
+			_finger_down(e.index, e.position)
+		else:
+			_finger_up(e.index, e.position, e.canceled)
+	elif e is InputEventScreenDrag:
+		get_viewport().set_input_as_handled()
+		var f = _fingers.get(e.index)
+		if f == null:   # a finger that landed before play started: adopt it as a look finger
+			_finger_down(e.index, e.position, true)
+			return
+		var d: Vector2 = e.position - f.pos
+		f.pos = e.position
+		f.moved += d.length()
+		if f.role == "look" or (f.role == "fire" and f.moved > FIRE_STEER):
+			var s = Config.TOUCH_SENS * inp.sens_scale
+			inp.yaw = clampf(inp.yaw - d.x * s, -game.yaw_limit(), game.yaw_limit())
+			inp.pitch = clampf(inp.pitch - d.y * s, Config.PITCH_MIN, Config.PITCH_MAX)
+
+
+func _finger_down(index: int, pos: Vector2, look_only := false) -> void:
+	if _fingers.has(index):
+		_finger_up(index, pos, true)
+	var hit: Dictionary = {} if look_only else hud.touch_hit(pos)
+	var role: String = hit.get("kind", "look")
+	_fingers[index] = {"pos": pos, "t": Time.get_ticks_msec(), "role": role, "moved": 999.0 if look_only else 0.0}
+	if role != "look":
+		hud.touch_visual(role, true)
+	match role:
+		"fire":
+			_on_touch_fire(true)
+		"reload":
+			inp.keys_pressed[KEY_R] = true
+		"zoom":
+			inp.zoom_toggle = not inp.zoom_toggle
+		"pause":
+			inp.keys_pressed[KEY_ESCAPE] = true
+		"bt":
+			inp.keys_pressed[KEY_B] = true
+		"weapon":
+			inp.keys_pressed[KEY_1 + int(hit.idx)] = true
+
+
+func _finger_up(index: int, pos: Vector2, canceled := false) -> void:
+	var f = _fingers.get(index)
+	if f == null:
+		return
+	_fingers.erase(index)
+	if f.role != "look":
+		hud.touch_visual(f.role, false)
+	if f.role == "fire" and not _fingers.values().any(func(o): return o.role == "fire"):
+		_on_touch_fire(false)
+	elif f.role == "look" and not canceled and f.moved < TAP_MOVE and Time.get_ticks_msec() - f.t < TAP_MS:
+		inp.pending_aim = pos
+		inp.fire_pressed = true
+
+
+## Let go of every finger (pause, round end): nothing stays pressed when play resumes.
+func _release_fingers() -> void:
+	for i in _fingers.keys():
+		_finger_up(i, Vector2.ZERO, true)
+	inp.fire_down = false
 
 
 # ------------------------------------------------------------ screens
@@ -356,21 +430,6 @@ func _unhandled_input(e: InputEvent) -> void:
 			MOUSE_BUTTON_WHEEL_DOWN:
 				if e.pressed:
 					inp.wheel += 1
-	# touch: one finger drags the view, a quick tap fires at the tapped spot
-	elif e is InputEventScreenTouch:
-		if e.pressed and _look_touch == -1:
-			_look_touch = e.index
-			_look_start = {"pos": e.position, "t": Time.get_ticks_msec(), "moved": 0.0}
-		elif not e.pressed and e.index == _look_touch:
-			_look_touch = -1
-			if _look_start.moved < 14.0 and Time.get_ticks_msec() - _look_start.t < 350:
-				inp.pending_aim = e.position
-				inp.fire_pressed = true
-	elif e is InputEventScreenDrag and e.index == _look_touch:
-		_look_start.moved += e.relative.length()
-		var s = Config.TOUCH_SENS * inp.sens_scale
-		inp.yaw = clampf(inp.yaw - e.relative.x * s, -game.yaw_limit(), game.yaw_limit())
-		inp.pitch = clampf(inp.pitch - e.relative.y * s, Config.PITCH_MIN, Config.PITCH_MAX)
 
 
 func _notification(what: int) -> void:
@@ -401,6 +460,9 @@ func _process(delta: float) -> void:
 	elif mode == "playing":
 		if touch and inp.keys_pressed.has(KEY_ESCAPE):
 			pause()
+	if mode != "playing" and not _fingers.is_empty():
+		_release_fingers()
+	if mode == "playing":
 		game.step(dt, inp)
 		camera.rotation = Vector3(inp.pitch, inp.yaw + game.view_yaw, 0)
 		if inp.pending_aim == null:
